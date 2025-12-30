@@ -28,7 +28,7 @@ def get_logger(name: str, level: str | None = None) -> logging.Logger:
     # Avoid duplicate handlers
     if not logger.handlers:
         # Console handler
-        handler = logging.StreamHandler(sys.stdout)
+        handler = logging.StreamHandler(sys.stderr)
         handler.setLevel(logging.DEBUG)
 
         # Formatter
