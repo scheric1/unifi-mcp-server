@@ -14,6 +14,17 @@ from .backup import (
 from .client import Client
 from .device import Device
 from .dpi import Country, DPIApplication, DPICategory
+from .firewall_policy import (
+    ConnectionStateType,
+    FirewallPolicy,
+    FirewallPolicyCreate,
+    FirewallPolicyUpdate,
+    IPVersion,
+    MatchingTarget,
+    MatchTarget,
+    PolicyAction,
+    Schedule,
+)
 from .firewall_zone import FirewallZone
 from .network import Network
 from .radius import RADIUSProfile
@@ -45,6 +56,15 @@ __all__ = [
     "ACLRule",
     "Voucher",
     "FirewallZone",
+    "FirewallPolicy",
+    "FirewallPolicyCreate",
+    "FirewallPolicyUpdate",
+    "PolicyAction",
+    "MatchingTarget",
+    "ConnectionStateType",
+    "IPVersion",
+    "MatchTarget",
+    "Schedule",
     "WANConnection",
     "DPICategory",
     "DPIApplication",
