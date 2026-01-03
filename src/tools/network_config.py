@@ -234,7 +234,10 @@ async def update_network(
 
             # Get existing network
             response = await client.get(f"/ea/sites/{site_id}/rest/networkconf")
-            networks_data: list[dict[str, Any]] = response.get("data", [])
+            if isinstance(response, list):
+                networks_data: list[dict[str, Any]] = response
+            else:
+                networks_data = response.get("data", [])
 
             existing_network = None
             for network in networks_data:
@@ -272,7 +275,10 @@ async def update_network(
             response = await client.put(
                 f"/ea/sites/{site_id}/rest/networkconf/{network_id}", json_data=update_data
             )
-            updated_network: dict[str, Any] = response.get("data", [{}])[0]
+            if isinstance(response, list):
+                updated_network: dict[str, Any] = response[0] if response else {}
+            else:
+                updated_network = response.get("data", [{}])[0]
 
             logger.info(f"Updated network '{network_id}' in site '{site_id}'")
             log_audit(
