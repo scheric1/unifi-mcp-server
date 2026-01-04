@@ -4,8 +4,8 @@ from typing import Any
 
 from ..api.client import UniFiClient
 from ..config import APIType, Settings
-from ..models.firewall_policy import FirewallPolicy
-from ..utils import ResourceNotFoundError, get_logger
+from ..models.firewall_policy import FirewallPolicy, FirewallPolicyCreate
+from ..utils import ResourceNotFoundError, get_logger, log_audit
 
 logger = get_logger(__name__)
 
@@ -119,3 +119,312 @@ async def get_firewall_policy(
             raise ResourceNotFoundError("firewall_policy", policy_id)
 
         return FirewallPolicy(**data).model_dump()
+
+
+async def create_firewall_policy(
+    name: str,
+    action: str,
+    site_id: str,
+    settings: Settings,
+    source_zone_id: str | None = None,
+    destination_zone_id: str | None = None,
+    source_matching_target: str = "ANY",
+    destination_matching_target: str = "ANY",
+    protocol: str = "all",
+    enabled: bool = True,
+    description: str | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Create a new firewall policy (Traffic & Firewall Rule).
+
+    Only available with local gateway API (api_type="local").
+    Requires confirm=True to execute. Use dry_run=True to preview.
+
+    Args:
+        name: Policy name
+        action: ALLOW or BLOCK
+        site_id: Site identifier
+        settings: Application settings
+        source_zone_id: Source zone ID
+        destination_zone_id: Destination zone ID
+        source_matching_target: ANY, IP, NETWORK, REGION, or CLIENT
+        destination_matching_target: ANY, IP, NETWORK, or REGION
+        protocol: all, tcp, udp, tcp_udp, or icmpv6
+        enabled: Whether policy is active
+        description: Optional description
+        confirm: REQUIRED True for mutating operations
+        dry_run: Preview changes without applying
+
+    Returns:
+        Created firewall policy object or dry-run preview
+
+    Raises:
+        ValueError: If confirm not True or invalid action
+        NotImplementedError: When using cloud API
+    """
+    _ensure_local_api(settings)
+
+    valid_actions = ["ALLOW", "BLOCK"]
+    action_upper = action.upper()
+    if action_upper not in valid_actions:
+        raise ValueError(f"Invalid action '{action}'. Must be one of: {valid_actions}")
+
+    source_config: dict[str, Any] = {"matching_target": source_matching_target.upper()}
+    if source_zone_id:
+        source_config["zone_id"] = source_zone_id
+
+    destination_config: dict[str, Any] = {"matching_target": destination_matching_target.upper()}
+    if destination_zone_id:
+        destination_config["zone_id"] = destination_zone_id
+
+    policy_data = FirewallPolicyCreate(
+        name=name,
+        action=action_upper,
+        enabled=enabled,
+        protocol=protocol,
+        source=source_config,
+        destination=destination_config,
+        description=description,
+    )
+
+    parameters = {
+        "site_id": site_id,
+        "name": name,
+        "action": action_upper,
+        "enabled": enabled,
+    }
+
+    if dry_run:
+        logger.info(f"DRY RUN: Would create firewall policy '{name}' in site '{site_id}'")
+        log_audit(
+            operation="create_firewall_policy",
+            parameters=parameters,
+            result="dry_run",
+            site_id=site_id,
+            dry_run=True,
+        )
+        return {
+            "status": "dry_run",
+            "message": f"Would create firewall policy '{name}'",
+            "policy": policy_data.model_dump(exclude_none=True),
+        }
+
+    if not confirm:
+        raise ValueError(
+            "This operation requires confirm=True to execute. "
+            "Use dry_run=True to preview changes first."
+        )
+
+    try:
+        async with UniFiClient(settings) as client:
+            logger.info(f"Creating firewall policy '{name}' for site {site_id}")
+
+            if not client.is_authenticated:
+                await client.authenticate()
+
+            endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies"
+            response = await client.post(
+                endpoint, json_data=policy_data.model_dump(exclude_none=True)
+            )
+
+            if isinstance(response, dict) and "data" in response:
+                data = response["data"]
+            else:
+                data = response
+
+            logger.info(f"Created firewall policy '{name}' in site '{site_id}'")
+            log_audit(
+                operation="create_firewall_policy",
+                parameters=parameters,
+                result="success",
+                site_id=site_id,
+            )
+
+            return FirewallPolicy(**data).model_dump()
+
+    except Exception as e:
+        logger.error(f"Failed to create firewall policy '{name}': {e}")
+        log_audit(
+            operation="create_firewall_policy",
+            parameters=parameters,
+            result="failed",
+            site_id=site_id,
+        )
+        raise
+
+
+async def update_firewall_policy(
+    policy_id: str,
+    site_id: str = "default",
+    settings: Settings = None,
+    name: str | None = None,
+    action: str | None = None,
+    enabled: bool | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Update an existing firewall policy.
+
+    Only provided fields are updated (partial update).
+
+    Args:
+        policy_id: ID of policy to update
+        site_id: Site identifier
+        settings: Application settings
+        name: New policy name (optional)
+        action: New action ALLOW/BLOCK (optional)
+        enabled: Enable/disable (optional)
+        confirm: REQUIRED True for mutating operations
+        dry_run: Preview changes without applying
+
+    Returns:
+        Updated policy object
+
+    Raises:
+        NotImplementedError: When using cloud API (v2 endpoints require local access)
+        ValueError: If confirmation not provided
+        ResourceNotFoundError: If policy not found
+    """
+    _ensure_local_api(settings)
+
+    if not dry_run and not confirm:
+        raise ValueError(
+            "This operation requires confirm=True to execute. "
+            "Use dry_run=True to preview changes first."
+        )
+
+    # Build update payload with only provided fields
+    update_data: dict[str, Any] = {}
+    if name is not None:
+        update_data["name"] = name
+    if action is not None:
+        action_upper = action.upper()
+        if action_upper not in ["ALLOW", "BLOCK"]:
+            raise ValueError(f"Invalid action '{action}'. Must be ALLOW or BLOCK.")
+        update_data["action"] = action_upper
+    if enabled is not None:
+        update_data["enabled"] = enabled
+
+    if dry_run:
+        logger.info(f"DRY RUN: Would update firewall policy {policy_id}")
+        return {
+            "status": "dry_run",
+            "policy_id": policy_id,
+            "changes": update_data,
+        }
+
+    async with UniFiClient(settings) as client:
+        logger.info(f"Updating firewall policy {policy_id} for site {site_id}")
+
+        if not client.is_authenticated:
+            await client.authenticate()
+
+        endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies/{policy_id}"
+
+        try:
+            response = await client.put(endpoint, json_data=update_data)
+        except ResourceNotFoundError:
+            raise ResourceNotFoundError("firewall_policy", policy_id)
+
+        if isinstance(response, dict) and "data" in response:
+            data = response["data"]
+        else:
+            data = response
+
+        logger.info(f"Updated firewall policy {policy_id}")
+        log_audit(
+            operation="update_firewall_policy",
+            parameters={"policy_id": policy_id, "site_id": site_id, **update_data},
+            result="success",
+            site_id=site_id,
+        )
+
+        return FirewallPolicy(**data).model_dump()
+
+
+async def delete_firewall_policy(
+    policy_id: str,
+    site_id: str = "default",
+    settings: Settings = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Delete a firewall policy.
+
+    Warning: Cannot delete predefined system rules.
+
+    Args:
+        policy_id: ID of policy to delete
+        site_id: Site identifier
+        settings: Application settings
+        confirm: REQUIRED True for destructive operations
+        dry_run: Preview deletion without applying
+
+    Returns:
+        Confirmation of deletion
+
+    Raises:
+        NotImplementedError: When using cloud API (v2 endpoints require local access)
+        ValueError: If confirmation not provided or attempting to delete predefined rule
+        ResourceNotFoundError: If policy not found
+    """
+    _ensure_local_api(settings)
+
+    if not dry_run and not confirm:
+        raise ValueError("This operation deletes a firewall policy. Pass confirm=True to proceed.")
+
+    async with UniFiClient(settings) as client:
+        logger.info(f"Deleting firewall policy {policy_id} from site {site_id}")
+
+        if not client.is_authenticated:
+            await client.authenticate()
+
+        endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies/{policy_id}"
+
+        try:
+            policy_response = await client.get(endpoint)
+        except ResourceNotFoundError:
+            raise ResourceNotFoundError("firewall_policy", policy_id)
+
+        if isinstance(policy_response, dict) and "data" in policy_response:
+            policy_data = policy_response["data"]
+        else:
+            policy_data = policy_response
+
+        if not policy_data:
+            raise ResourceNotFoundError("firewall_policy", policy_id)
+
+        policy = FirewallPolicy(**policy_data)
+
+        if policy.predefined:
+            raise ValueError(
+                f"Cannot delete predefined system rule '{policy.name}' (id={policy_id}). "
+                "Predefined rules are managed by the UniFi system."
+            )
+
+        if dry_run:
+            logger.info(f"DRY RUN: Would delete firewall policy {policy_id}")
+            return {
+                "status": "dry_run",
+                "policy_id": policy_id,
+                "action": "would_delete",
+                "policy": policy.model_dump(),
+            }
+
+        await client.delete(endpoint)
+
+        log_audit(
+            operation="delete_firewall_policy",
+            parameters={"policy_id": policy_id, "site_id": site_id},
+            result="success",
+            site_id=site_id,
+        )
+
+        logger.info(f"Deleted firewall policy {policy_id} from site {site_id}")
+
+        return {
+            "status": "success",
+            "policy_id": policy_id,
+            "action": "deleted",
+        }
