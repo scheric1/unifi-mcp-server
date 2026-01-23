@@ -4,10 +4,7 @@ from typing import Any
 
 from ..api import UniFiClient
 from ..config import Settings
-from ..models.traffic_matching_list import (
-    TrafficMatchingList,
-    TrafficMatchingListCreate,
-)
+from ..models.traffic_matching_list import TrafficMatchingList, TrafficMatchingListCreate
 from ..utils import (
     ResourceNotFoundError,
     ValidationError,

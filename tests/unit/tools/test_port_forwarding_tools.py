@@ -5,11 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import src.tools.port_forwarding as pf_module
-from src.tools.port_forwarding import (
-    create_port_forward,
-    delete_port_forward,
-    list_port_forwards,
-)
+from src.tools.port_forwarding import create_port_forward, delete_port_forward, list_port_forwards
 from src.utils.exceptions import ResourceNotFoundError, ValidationError
 
 
