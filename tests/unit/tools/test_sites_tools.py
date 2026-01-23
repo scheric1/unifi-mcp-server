@@ -209,7 +209,7 @@ class TestListSites:
         with patch("src.tools.sites.UniFiClient") as mock_client_class:
             mock_client_class.return_value = create_mock_client(mock_response)
 
-            with pytest.raises(Exception):
+            with pytest.raises((Exception, ValueError, KeyError)):  # noqa: B017
                 await list_sites(mock_settings)
 
 

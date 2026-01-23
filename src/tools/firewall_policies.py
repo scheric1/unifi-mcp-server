@@ -106,8 +106,8 @@ async def get_firewall_policy(
 
         try:
             response = await client.get(endpoint)
-        except ResourceNotFoundError:
-            raise ResourceNotFoundError("firewall_policy", policy_id)
+        except ResourceNotFoundError as err:
+            raise ResourceNotFoundError("firewall_policy", policy_id) from err
 
         # Handle both wrapped and unwrapped responses
         if isinstance(response, dict) and "data" in response:
@@ -324,8 +324,8 @@ async def update_firewall_policy(
 
         try:
             response = await client.put(endpoint, json_data=update_data)
-        except ResourceNotFoundError:
-            raise ResourceNotFoundError("firewall_policy", policy_id)
+        except ResourceNotFoundError as err:
+            raise ResourceNotFoundError("firewall_policy", policy_id) from err
 
         if isinstance(response, dict) and "data" in response:
             data = response["data"]
@@ -384,8 +384,8 @@ async def delete_firewall_policy(
 
         try:
             policy_response = await client.get(endpoint)
-        except ResourceNotFoundError:
-            raise ResourceNotFoundError("firewall_policy", policy_id)
+        except ResourceNotFoundError as err:
+            raise ResourceNotFoundError("firewall_policy", policy_id) from err
 
         if isinstance(policy_response, dict) and "data" in policy_response:
             policy_data = policy_response["data"]

@@ -90,7 +90,7 @@ async def update_site_to_site_vpn(
 
         # Merge and update
         payload = {**current, **updates}
-        result = await client.put(
+        await client.put(
             f"/proxy/network/api/s/{site_id}/rest/networkconf/{vpn_id}", payload
         )
         logger.info(f"Updated VPN {vpn_id}")

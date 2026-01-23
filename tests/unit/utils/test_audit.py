@@ -38,7 +38,7 @@ class TestAuditLoggerInit:
     def test_init_creates_parent_directory(self, tmp_path):
         """Test that AuditLogger creates parent directory if needed."""
         log_path = tmp_path / "nested" / "dir" / "audit.log"
-        logger = AuditLogger(log_file=log_path)
+        AuditLogger(log_file=log_path)
         assert log_path.parent.exists()
 
     def test_init_custom_log_level(self, tmp_path):

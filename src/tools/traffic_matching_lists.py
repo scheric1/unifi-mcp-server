@@ -348,10 +348,10 @@ async def delete_traffic_matching_list(
                 await client.get(
                     f"/integration/v1/sites/{site_id}/traffic-matching-lists/{list_id}"
                 )
-            except Exception:
-                raise ResourceNotFoundError("traffic_matching_list", list_id)
+            except Exception as err:
+                raise ResourceNotFoundError("traffic_matching_list", list_id) from err
 
-            response = await client.delete(
+            await client.delete(
                 f"/integration/v1/sites/{site_id}/traffic-matching-lists/{list_id}"
             )
 
