@@ -17,7 +17,9 @@ This document provides comprehensive reference documentation for the UniFi Netwo
 - [WiFi Broadcasts](#wifi-broadcasts)
 - [Hotspot](#hotspot)
 - [Firewall](#firewall)
+- [Firewall Policies](#firewall-policies)
 - [Access Control (ACL Rules)](#access-control-acl-rules)
+- [DNS Policies](#dns-policies)
 - [Traffic Matching Lists](#traffic-matching-lists)
 - [Supporting Resources](#supporting-resources)
 
@@ -236,6 +238,7 @@ Endpoints to list, inspect, and interact with UniFi devices.
 |-----------|------|---------|
 | `offset` | number | 0 |
 | `limit` | number | 25 |
+| `filter` | string | - |
 
 **Response:** `200 OK`
 
@@ -262,6 +265,38 @@ Retrieve a paginated list of all adopted devices on a site.
 
 **Response:** `200 OK`
 
+### Adopt Device
+
+Adopt a device to a site.
+
+- **Method:** `POST`
+- **Endpoint:** `/v1/sites/{siteId}/devices`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `macAddress` | string | Yes | MAC address of the device to adopt |
+| `ignoreDeviceLimit` | boolean | Yes | Whether to ignore device limit |
+
+**Example Request:**
+```json
+{
+  "macAddress": "00:1A:2B:3C:4D:5E",
+  "ignoreDeviceLimit": true
+}
+```
+
+**Response:** `200 OK`
+
+Returns device details including IDs, MAC/IP, firmware, features, and interface lists.
+
 ### Get Adopted Device Details
 
 Retrieve detailed information about a specific adopted device.
@@ -278,6 +313,14 @@ Retrieve detailed information about a specific adopted device.
 
 **Response:** `200 OK`
 
+**Response Fields:**
+- `id`, `macAddress`, `ipAddress`, `name`, `model`, `supported`, `state`
+- `firmwareVersion`, `firmwareUpdatable`
+- `adoptedAt`, `provisionedAt`
+- `configurationId`, `uplink.deviceId`
+- `features.switching`, `features.accessPoint`
+- `interfaces.ports[...]`, `interfaces.radios[...]`
+
 ### Get Latest Adopted Device Statistics
 
 Retrieve real-time statistics including uptime, CPU, memory utilization.
@@ -291,8 +334,16 @@ Retrieve real-time statistics including uptime, CPU, memory utilization.
 {
   "uptimeSec": 86400,
   "lastHeartbeatAt": "2025-11-26T12:00:00Z",
+  "nextHeartbeatAt": "2025-11-26T12:05:00Z",
+  "loadAverage1Min": 0.5,
+  "loadAverage5Min": 0.4,
+  "loadAverage15Min": 0.3,
   "cpuUtilizationPct": 15.5,
-  "memoryUtilizationPct": 45.2
+  "memoryUtilizationPct": 45.2,
+  "uplink": {
+    "txRateBps": 1000000,
+    "rxRateBps": 500000
+  }
 }
 ```
 
@@ -382,6 +433,13 @@ Endpoints for viewing and managing connected clients (wired, wireless, VPN, and 
 
 **Response:** `200 OK`
 
+**Response Fields:**
+- `type` – one of `WIRED`, `WIRELESS`, `VPN`, `TELEPORT`
+- `id`, `name`, `connectedAt`
+- `ipAddress`, `macAddress`
+- `access.type`
+- `uplinkDeviceId`
+
 ### Execute Client Action
 
 Perform an action on a specific connected client.
@@ -451,10 +509,27 @@ Endpoints for creating, updating, deleting, and inspecting network configuration
 
 **Response:** `200 OK`
 
+**Response Fields:**
+- `management` – `UNMANAGED`, `GATEWAY`, or `SWITCH`
+- `id`, `name`, `enabled`
+- `vlanId` (2–4000)
+- `metadata.origin`
+- `dhcpGuarding.trustedDhcpServerIpAddresses[...]`
+
 ### Update Network
 
 - **Method:** `PUT`
 - **Endpoint:** `/v1/sites/{siteId}/networks/{networkId}`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `management` | string | Yes | `UNMANAGED`, `GATEWAY`, or `SWITCH` |
+| `name` | string | Yes | Network name (non-empty) |
+| `enabled` | boolean | Yes | Enable/disable |
+| `vlanId` | integer | Yes | VLAN ID (2-4000) |
+| `dhcpGuarding` | object | No | DHCP Guarding settings (null to disable) |
 
 **Response:** `200 OK`
 
@@ -479,11 +554,21 @@ Endpoints for creating, updating, deleting, and inspecting network configuration
 
 **Response:** `200 OK`
 
+```json
+{
+  "referenceResources": [
+    {
+      ...
+    }
+  ]
+}
+```
+
 ---
 
 ## WiFi Broadcasts
 
-Endpoints to create, update, or remove WiFi networks (SSIDs).
+Endpoints to create, update, or remove WiFi networks (SSIDs). Supports configuration of security, band steering, multicast filtering, and captive portals.
 
 ### List Wifi Broadcasts
 
@@ -496,6 +581,14 @@ Endpoints to create, update, or remove WiFi networks (SSIDs).
 |-----------|------|----------|
 | `siteId` | string (uuid) | Yes |
 
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
 **Response:** `200 OK`
 
 ### Create Wifi Broadcast
@@ -506,19 +599,31 @@ Endpoints to create, update, or remove WiFi networks (SSIDs).
 
 **Request Body Fields:**
 
-| Field | Type | Required |
-|-------|------|----------|
-| `type` | string | Yes (`STANDARD` or `IOT_OPTIMIZED`) |
-| `name` | string | Yes |
-| `enabled` | boolean | Yes |
-| `securityConfiguration` | object | Yes |
-| `multicastToUnicastConversionEnabled` | boolean | Yes |
-| `clientIsolationEnabled` | boolean | Yes |
-| `hideName` | boolean | Yes |
-| `uapsdEnabled` | boolean | Yes |
-| `broadcastingFrequenciesGHz` | array | Yes (`2.4`, `5`, `6`) |
-| `arpProxyEnabled` | boolean | Yes |
-| `bssTransitionEnabled` | boolean | Yes |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | `STANDARD` or `IOT_OPTIMIZED` |
+| `name` | string | Yes | WiFi broadcast name |
+| `enabled` | boolean | Yes | Enable/disable broadcast |
+| `network` | object | No | WiFi network reference |
+| `securityConfiguration` | object | Yes | WiFi security configuration detail |
+| `broadcastingDeviceFilter` | object | No | Custom scope of devices that will broadcast. If null, all AP-capable devices broadcast. |
+| `mdnsProxyConfiguration` | object | No | mDNS filtering configuration |
+| `multicastFilteringPolicy` | object | No | Multicast filtering policy |
+| `multicastToUnicastConversionEnabled` | boolean | Yes | Enable multicast to unicast conversion |
+| `clientIsolationEnabled` | boolean | Yes | Enable client isolation |
+| `hideName` | boolean | Yes | Hide SSID |
+| `uapsdEnabled` | boolean | Yes | Enable Unscheduled Automatic Power Save Delivery (U-APSD) |
+| `basicDataRateKbpsByFrequencyGHz` | object | No | Basic data rates by frequency (e.g., `{"5":6000,"2.4":2000}`) |
+| `clientFilteringPolicy` | object | No | Client connection filtering policy (allow/restrict by MAC) |
+| `blackoutScheduleConfiguration` | object | No | Blackout schedule configuration |
+| `broadcastingFrequenciesGHz` | array | Yes | Unique items: `2.4`, `5`, `6` |
+| `hotspotConfiguration` | object | No | WiFi hotspot configuration |
+| `mloEnabled` | boolean | No | Enable MLO |
+| `bandSteeringEnabled` | boolean | No | Enable band steering |
+| `arpProxyEnabled` | boolean | Yes | Enable ARP proxy |
+| `bssTransitionEnabled` | boolean | Yes | Enable BSS transition |
+| `advertiseDeviceName` | boolean | Yes | Advertise device name in beacon frames |
+| `dtimPeriodByFrequencyGHzOverride` | object | No | DTIM period configuration by frequency |
 
 ### Get Wifi Broadcast Details
 
@@ -527,10 +632,32 @@ Endpoints to create, update, or remove WiFi networks (SSIDs).
 
 **Response:** `200 OK`
 
+**Response Fields:**
+- `type` – `STANDARD` or `IOT_OPTIMIZED`
+- `id`, `name`, `enabled`
+- `metadata.origin`
+- `network.type`
+- `securityConfiguration.type`, `securityConfiguration.radiusConfiguration`
+- `broadcastingDeviceFilter.type`
+- `mdnsProxyConfiguration.mode`
+- `multicastFilteringPolicy.action`
+- `multicastToUnicastConversionEnabled`
+- `clientIsolationEnabled`
+- `hideName`, `uapsdEnabled`
+- `basicDataRateKbpsByFrequencyGHz`
+- `clientFilteringPolicy.action`, `clientFilteringPolicy.macAddressFilter[...]`
+- `blackoutScheduleConfiguration.days[...]`
+- `broadcastingFrequenciesGHz`
+- `hotspotConfiguration.type`
+- `mloEnabled`, `bandSteeringEnabled`, `arpProxyEnabled`, `bssTransitionEnabled`, `advertiseDeviceName`
+- `dtimPeriodByFrequencyGHzOverride`
+
 ### Update Wifi Broadcast
 
 - **Method:** `PUT`
 - **Endpoint:** `/v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}`
+
+**Request Body:** Same schema as Create Wifi Broadcast.
 
 **Response:** `200 OK`
 
@@ -538,6 +665,12 @@ Endpoints to create, update, or remove WiFi networks (SSIDs).
 
 - **Method:** `DELETE`
 - **Endpoint:** `/v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}`
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `force` | boolean | false |
 
 **Response:** `200 OK`
 
@@ -641,7 +774,7 @@ Remove a specific Hotspot voucher.
 
 ## Firewall
 
-Endpoints for managing custom firewall zones and policies within a site.
+Endpoints for managing custom firewall zones within a site.
 
 ### List Firewall Zones
 
@@ -670,10 +803,18 @@ Create a new custom firewall zone on a site.
 
 **Request Body:**
 
-| Field | Type | Required |
-|-------|------|----------|
-| `name` | string | Yes |
-| `networkIds` | array | Yes |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Name of firewall zone |
+| `networkIds` | array | Yes | List of Network IDs (UUIDs) |
+
+**Example Request:**
+```json
+{
+  "name": "My custom zone",
+  "networkIds": ["dfb21062-8ea0-4dca-b1d8-1eb3da00e58b"]
+}
+```
 
 ### Get Firewall Zone
 
@@ -716,6 +857,212 @@ Update a firewall zone on a site.
 
 ---
 
+## Firewall Policies
+
+Endpoints for managing firewall policies within a site. Define or update network segmentation and security boundaries.
+
+### List Firewall Policies
+
+Retrieve a list of all firewall policies on a site.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
+**Response:** `200 OK`
+
+### Create Firewall Policy
+
+Create a new firewall policy on a site.
+
+- **Method:** `POST`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies`
+- **Response:** `201 Created`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | Yes | Enable/disable policy |
+| `name` | string | Yes | Policy name (non-empty) |
+| `description` | string | No | Policy description |
+| `action` | object | Yes | Defines action for matched traffic |
+| `source` | object | Yes | Firewall policy source |
+| `destination` | object | Yes | Firewall policy destination |
+| `ipProtocolScope` | object | Yes | Defines rules for matching by IP version and protocol |
+| `connectionStateFilter` | array | No | Match on firewall connection state. Values: `NEW`, `INVALID`, `ESTABLISHED`, `RELATED`. If null, matches all. |
+| `ipsecFilter` | string | No | Match on traffic encrypted or not encrypted by IPsec. Values: `MATCH_ENCRYPTED`, `MATCH_NOT_ENCRYPTED`. If null, matches all. |
+| `loggingEnabled` | boolean | Yes | Generate syslog entries when traffic is matched |
+| `schedule` | object | No | Defines date and time when the entity is active. If null, the entity is always active. |
+
+**Response:** Returns created policy with all fields including `id`, `index`, and `metadata`.
+
+### Get Firewall Policy
+
+Retrieve specific firewall policy.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `firewallPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
+
+**Response:** `200 OK`
+
+**Response Fields:**
+- `id`, `enabled`, `name`, `description`, `index`
+- `action.type`
+- `source.firewallZoneId`, `source.trafficFilter`
+- `destination.firewallZoneId`, `destination.trafficFilter`
+- `ipProtocolScope.ipVersion`
+- `connectionStateFilter` (array: `NEW`, `INVALID`, `ESTABLISHED`, `RELATED`)
+- `ipsecFilter` (`MATCH_ENCRYPTED`, `MATCH_NOT_ENCRYPTED`)
+- `loggingEnabled`
+- `schedule.mode`
+- `metadata.origin`
+
+### Update Firewall Policy
+
+Update an existing firewall policy on a site.
+
+- **Method:** `PUT`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}`
+
+**Request Body:** Same schema as Create Firewall Policy.
+
+**Response:** `200 OK`
+
+### Patch Firewall Policy
+
+Patch an existing firewall policy on a site.
+
+- **Method:** `PATCH`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `firewallPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
+
+**Request Body:**
+
+Partial policy object with only the fields to update.
+
+**Example Request:**
+```json
+{
+  "loggingEnabled": true
+}
+```
+
+**Response:** `200 OK`
+
+### Delete Firewall Policy
+
+Delete an existing firewall policy on a site.
+
+- **Method:** `DELETE`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `firewallPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
+
+**Response:** `200 OK`
+
+### Get User-Defined Firewall Policy Ordering
+
+Retrieve user-defined firewall policy ordering for a specific source/destination zone pair.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/ordering`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Query Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `sourceFirewallZoneId` | string (uuid) | Yes |
+| `destinationFirewallZoneId` | string (uuid) | Yes |
+
+**Response:** `200 OK`
+
+```json
+{
+  "orderedFirewallPolicyIds": {
+    "beforeSystemDefined": [...],
+    "afterSystemDefined": [...]
+  }
+}
+```
+
+### Reorder User-Defined Firewall Policies
+
+Reorder user-defined firewall policies for a specific source/destination zone pair.
+
+- **Method:** `PUT`
+- **Endpoint:** `/v1/sites/{siteId}/firewall/policies/ordering`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Query Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `sourceFirewallZoneId` | string (uuid) | Yes |
+| `destinationFirewallZoneId` | string (uuid) | Yes |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `orderedFirewallPolicyIds` | object | Yes | Ordered firewall policy IDs |
+
+**Example Request:**
+```json
+{
+  "orderedFirewallPolicyIds": {
+    "beforeSystemDefined": [...],
+    "afterSystemDefined": [...]
+  }
+}
+```
+
+**Response:** `200 OK`
+
+---
+
 ## Access Control (ACL Rules)
 
 Endpoints for creating, listing, and managing ACL rules that enforce traffic filtering across devices and networks.
@@ -751,11 +1098,11 @@ Create a new user defined ACL rule.
 |-------|------|----------|-------------|
 | `type` | string | Yes | `IPV4` or `MAC` |
 | `enabled` | boolean | Yes | Enable/disable rule |
-| `name` | string | Yes | ACL rule name |
+| `name` | string | Yes | ACL rule name (non-empty) |
 | `description` | string | No | ACL rule description |
 | `action` | string | Yes | `ALLOW` or `BLOCK` |
-| `enforcingDeviceFilter` | object | No | Device filter (null = all switches) |
-| `index` | integer (int32) | Yes | Rule priority (>= 0, lower = higher priority) |
+| `enforcingDeviceFilter` | object | No | IDs of Switch-capable devices to enforce. When null, rule applies to all switches. |
+| `index` | integer (int32) | Yes | Rule priority (>= 0, lower = higher priority). **Deprecated:** Use ACL rule reordering endpoint. |
 | `sourceFilter` | object | No | Traffic source filter |
 | `destinationFilter` | object | No | Traffic destination filter |
 | `protocolFilter` | array | No | Protocols (`TCP`, `UDP`), null = all |
@@ -789,12 +1136,187 @@ Update an existing user defined ACL rule.
 - **Method:** `PUT`
 - **Endpoint:** `/v1/sites/{siteId}/acl-rules/{aclRuleId}`
 
+**Request Body:** Same schema as Create ACL Rule.
+
 **Response:** `200 OK`
 
 ### Delete ACL Rule
 
 - **Method:** `DELETE`
 - **Endpoint:** `/v1/sites/{siteId}/acl-rules/{aclRuleId}`
+
+**Response:** `200 OK`
+
+### Get User-Defined ACL Rule Ordering
+
+Retrieve user-defined ACL rule ordering on a site.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/acl-rules/ordering`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Response:** `200 OK`
+
+```json
+{
+  "orderedAclRuleIds": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+}
+```
+
+### Reorder User-Defined ACL Rules
+
+Reorder user-defined ACL rules on a site.
+
+- **Method:** `PUT`
+- **Endpoint:** `/v1/sites/{siteId}/acl-rules/ordering`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `orderedAclRuleIds` | array | Yes | Array of ACL rule IDs (UUIDs) in desired order |
+
+**Example Request:**
+```json
+{
+  "orderedAclRuleIds": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+}
+```
+
+**Response:** `200 OK`
+
+---
+
+## DNS Policies
+
+Endpoints for managing DNS Policies within a site. Supports A, AAAA, CNAME, MX, TXT, SRV records, and domain forwarding.
+
+### List DNS Policies
+
+Retrieve a paginated list of all DNS policies on a site.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/dns/policies`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `siteId` | string (uuid) | Yes |
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
+**Response:** `200 OK`
+
+### Create DNS Policy
+
+Create a new DNS policy on a site.
+
+- **Method:** `POST`
+- **Endpoint:** `/v1/sites/{siteId}/dns/policies`
+- **Response:** `201 Created`
+
+**Request Body (A_RECORD example):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Record type (see supported types below) |
+| `enabled` | boolean | Yes | Enable/disable policy |
+| `domain` | string | Yes | Domain name (1-127 chars) |
+| `ipv4Address` | string | Yes* | IPv4 address (*for A_RECORD type) |
+| `ttlSeconds` | integer | Yes | Time to live in seconds (0-604800) |
+
+**Supported Types:** `A_RECORD`, `AAAA_RECORD`, `CNAME_RECORD`, `MX_RECORD`, `TXT_RECORD`, `SRV_RECORD`, `FORWARD_DOMAIN`
+
+**Example Request (A_RECORD):**
+```json
+{
+  "type": "A_RECORD",
+  "enabled": true,
+  "domain": "example.com",
+  "ipv4Address": "192.168.1.10",
+  "ttlSeconds": 14400
+}
+```
+
+**Response:** Returns created DNS policy with `id`.
+
+### Get DNS Policy
+
+Retrieve specific DNS policy.
+
+- **Method:** `GET`
+- **Endpoint:** `/v1/sites/{siteId}/dns/policies/{dnsPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `dnsPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
+
+**Response:** `200 OK`
+
+**Example Response (A_RECORD):**
+```json
+{
+  "type": "A_RECORD",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "enabled": true,
+  "domain": "example.com",
+  "ipv4Address": "192.168.1.10",
+  "ttlSeconds": 14400
+}
+```
+
+### Update DNS Policy
+
+Update an existing DNS policy on a site.
+
+- **Method:** `PUT`
+- **Endpoint:** `/v1/sites/{siteId}/dns/policies/{dnsPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `dnsPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
+
+**Request Body:** Same schema as Create DNS Policy for the appropriate record type.
+
+**Response:** `200 OK`
+
+### Delete DNS Policy
+
+Delete an existing DNS policy on a site.
+
+- **Method:** `DELETE`
+- **Endpoint:** `/v1/sites/{siteId}/dns/policies/{dnsPolicyId}`
+
+**Path Parameters:**
+
+| Parameter | Type | Required |
+|-----------|------|----------|
+| `dnsPolicyId` | string (uuid) | Yes |
+| `siteId` | string (uuid) | Yes |
 
 **Response:** `200 OK`
 
@@ -819,6 +1341,7 @@ Retrieve all traffic matching lists on a site.
 |-----------|------|---------|
 | `offset` | number | 0 |
 | `limit` | number | 25 |
+| `filter` | string | - |
 
 **Response:** `200 OK`
 
@@ -837,7 +1360,7 @@ Create a new traffic matching list on a site.
 | Field | Type | Required |
 |-------|------|----------|
 | `type` | string | Yes (`PORTS`, `IPV4_ADDRESSES`, `IPV6_ADDRESSES`) |
-| `name` | string | Yes |
+| `name` | string | Yes (non-empty) |
 | `items` | array | Yes (non-empty) |
 
 ### Get Traffic Matching List ✅
@@ -858,12 +1381,30 @@ Get an existing traffic matching list on a site.
 | `name` | string |
 | `items` | array |
 
+**Example Response (PORTS type):**
+```json
+{
+  "type": "PORTS",
+  "id": "ffcdb32c-6278-4364-8947-df4f77118df8",
+  "name": "Allowed port list",
+  "items": [...]
+}
+```
+
 ### Update Traffic Matching List ✅
 
 - **Method:** `PUT`
 - **Endpoint:** `/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId}`
 - **MCP Tool:** `update_traffic_matching_list()`
 - **Implementation:** Batch 1 (92.47% coverage)
+
+**Request Body:**
+
+| Field | Type | Required |
+|-------|------|----------|
+| `type` | string | Yes (`PORTS`, `IPV4_ADDRESSES`, `IPV6_ADDRESSES`) |
+| `name` | string | Yes (non-empty) |
+| `items` | array | Yes (non-empty) |
 
 **Response:** `200 OK`
 
@@ -907,6 +1448,14 @@ Retrieve a paginated list of all site-to-site VPN tunnels on a site.
 - **MCP Tool:** `list_vpn_tunnels()`
 - **Implementation:** Batch 2 (100% coverage)
 
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
 **Response:** `200 OK`
 
 ### List VPN Servers ✅
@@ -917,6 +1466,14 @@ Retrieve a paginated list of all VPN servers on a site.
 - **Endpoint:** `/v1/sites/{siteId}/vpn/servers`
 - **MCP Tool:** `list_vpn_servers()`
 - **Implementation:** Batch 2 (100% coverage)
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
 
 **Response:** `200 OK`
 
@@ -929,6 +1486,14 @@ Returns available RADIUS authentication profiles.
 - **MCP Tool:** `list_radius_profiles()`
 - **Implementation:** Batch 3 (100% coverage)
 
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
 **Response:** `200 OK`
 
 ### List Device Tags ✅
@@ -940,6 +1505,14 @@ Returns all device tags defined within a site (used for WiFi Broadcast assignmen
 - **MCP Tool:** `list_device_tags()`
 - **Implementation:** Batch 3 (100% coverage)
 
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
 **Response:** `200 OK`
 
 ### List DPI Categories
@@ -949,6 +1522,14 @@ Returns predefined Deep Packet Inspection (DPI) categories used for traffic iden
 - **Method:** `GET`
 - **Endpoint:** `/v1/dpi/categories`
 
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
+
 **Response:** `200 OK`
 
 ### List DPI Applications
@@ -957,6 +1538,14 @@ Lists DPI-recognized applications grouped under categories.
 
 - **Method:** `GET`
 - **Endpoint:** `/v1/dpi/applications`
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
 
 **Response:** `200 OK`
 
@@ -968,6 +1557,14 @@ Returns ISO-standard country codes and names.
 - **Endpoint:** `/v1/countries`
 - **MCP Tool:** `list_countries()` (enhanced with pagination)
 - **Implementation:** Batch 3 (100% coverage)
+
+**Query Parameters:**
+
+| Parameter | Type | Default |
+|-----------|------|---------|
+| `offset` | number | 0 |
+| `limit` | number | 25 |
+| `filter` | string | - |
 
 **Response:** `200 OK`
 
@@ -1008,5 +1605,5 @@ All list endpoints return a standard paginated response:
 ---
 
 **Documentation Version:** v10.0.160
-**Last Updated:** November 26, 2025
-**Source:** UniFi Network API v10.0.160
+**Last Updated:** January 23, 2026
+**Source:** UniFi Network API v10.0.160 (Merged Update)
