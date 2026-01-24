@@ -214,48 +214,89 @@ export async function performLogin(page, credentials) {
   let hasPasskey = false;
   let hasPassword = false;
   let authType = null;
+  let alreadyAuthenticated = false;
 
   console.log('Detecting authentication method...');
 
   for (let i = 0; i < 10; i++) { // Check for up to 10 seconds
-    // Check for passkey prompt
-    hasPasskey = await page.evaluate(() => {
-      const text = document.body.textContent?.toLowerCase() || '';
-      return text.includes('passkey') ||
-             text.includes('security key') ||
-             text.includes('authenticator') ||
-             text.includes('biometric') ||
-             text.includes('touch id') ||
-             text.includes('face id') ||
-             text.includes('use your passkey');
-    });
-
-    // Check for password field
-    hasPassword = await page.evaluate(() => {
-      const passwordInput = document.querySelector('input[type="password"]');
-      return passwordInput !== null && passwordInput.offsetParent !== null; // Visible
-    });
-
-    if (hasPasskey) {
-      authType = 'passkey';
+    // Check if we've already navigated away from login (fast passkey completion)
+    const currentUrl = page.url();
+    if (!currentUrl.includes('login') && !currentUrl.includes('auth')) {
+      console.log('✓ Already authenticated (navigated away from login)');
+      alreadyAuthenticated = true;
       break;
-    } else if (hasPassword) {
-      authType = 'password';
-      break;
+    }
+
+    try {
+      // Check for passkey prompt
+      hasPasskey = await page.evaluate(() => {
+        const text = document.body.textContent?.toLowerCase() || '';
+        return text.includes('passkey') ||
+               text.includes('security key') ||
+               text.includes('authenticator') ||
+               text.includes('biometric') ||
+               text.includes('touch id') ||
+               text.includes('face id') ||
+               text.includes('use your passkey');
+      }).catch(err => {
+        // Navigation error means page changed - likely successful auth
+        if (err.message.includes('Execution context was destroyed')) {
+          return false; // Will check URL in next iteration
+        }
+        throw err;
+      });
+
+      // Check for password field
+      hasPassword = await page.evaluate(() => {
+        const passwordInput = document.querySelector('input[type="password"]');
+        return passwordInput !== null && passwordInput.offsetParent !== null; // Visible
+      }).catch(err => {
+        // Navigation error means page changed - likely successful auth
+        if (err.message.includes('Execution context was destroyed')) {
+          return false; // Will check URL in next iteration
+        }
+        throw err;
+      });
+
+      if (hasPasskey) {
+        authType = 'passkey';
+        break;
+      } else if (hasPassword) {
+        authType = 'password';
+        break;
+      }
+    } catch (error) {
+      // If execution context was destroyed, check if we've navigated away
+      if (error.message.includes('Execution context was destroyed')) {
+        console.log('Page navigated during detection, checking if authenticated...');
+        await delay(1000);
+        const urlAfterNav = page.url();
+        if (!urlAfterNav.includes('login') && !urlAfterNav.includes('auth')) {
+          console.log('✓ Authentication successful (navigation detected)');
+          alreadyAuthenticated = true;
+          break;
+        }
+      } else {
+        throw error;
+      }
     }
 
     await delay(1000); // Wait 1 second before checking again
   }
 
-  if (!authType) {
+  // If already authenticated, skip the auth flow entirely
+  if (alreadyAuthenticated) {
+    console.log('✓ Skipping auth flow - already logged in');
+    // Jump to the end where we navigate to API docs
+  } else if (!authType) {
     console.warn('⚠️  Could not detect auth method, assuming passkey...');
     authType = 'passkey';
     hasPasskey = true;
+  } else {
+    console.log(`✓ Detected authentication method: ${authType}`);
   }
 
-  console.log(`✓ Detected authentication method: ${authType}`);
-
-  if (authType === 'passkey') {
+  if (!alreadyAuthenticated && authType === 'passkey') {
     console.warn('\n🔑 Passkey/WebAuthn authentication detected!');
     console.warn('Please complete passkey authentication in the browser window.');
     console.warn('This may include:');
@@ -330,14 +371,16 @@ export async function performLogin(page, credentials) {
     }
   }
 
-  // Check if login succeeded (works for both passkey and password flows)
-  const finalUrl = page.url();
-  if (finalUrl.includes('login') || finalUrl.includes('auth')) {
-    throw new Error('Login failed - still on login page. Check credentials.');
+  // Check if login succeeded (skip if already authenticated during detection)
+  if (!alreadyAuthenticated) {
+    const finalUrl = page.url();
+    if (finalUrl.includes('login') || finalUrl.includes('auth')) {
+      throw new Error('Login failed - still on login page. Check credentials.');
+    }
   }
 
-  // Handle potential 2FA or additional verification (skip if passkey was used)
-  if (!hasPasskey) {
+  // Handle potential 2FA or additional verification (skip if passkey was used or already authenticated)
+  if (!alreadyAuthenticated && !hasPasskey) {
     await delay(3000);
 
     // Check for traditional 2FA prompts (SMS, authenticator app codes)
