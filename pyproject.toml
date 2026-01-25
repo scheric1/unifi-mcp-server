@@ -3,7 +3,7 @@ name = "unifi-mcp-server"
 version = "0.2.0"
 description = "A Model Context Protocol (MCP) server for UniFi Network API"
 authors = [
-    {name = "Elvis", email = "elvis@homelab.local"}
+    {name = "enuno", email = "noreply@github.com"}
 ]
 readme = "README.md"
 license = {text = "Apache-2.0"}
