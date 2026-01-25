@@ -222,13 +222,13 @@ async def update_radius_profile(
             payload["enabled"] = enabled
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would update RADIUS profile with payload: {payload}")
             # Redact secrets in dry run output
             payload_safe = payload.copy()
             if "auth_secret" in payload_safe:
                 payload_safe["auth_secret"] = "***REDACTED***"
             if "acct_secret" in payload_safe:
                 payload_safe["acct_secret"] = "***REDACTED***"
+            logger.info(f"[DRY RUN] Would update RADIUS profile with payload: {payload_safe}")
             return {"dry_run": True, "profile_id": profile_id, "payload": payload_safe}
 
         response = await client.put(
@@ -542,10 +542,10 @@ async def configure_guest_portal(
             payload["terms_of_service_text"] = terms_of_service_text
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would configure guest portal with payload: {payload}")
             payload_safe = payload.copy()
             if "password" in payload_safe:
                 payload_safe["password"] = "***REDACTED***"
+            logger.info(f"[DRY RUN] Would configure guest portal with payload: {payload_safe}")
             return {"dry_run": True, "payload": payload_safe}
 
         response = await client.put(
