@@ -1,0 +1,19 @@
+{
+  "name": "unifi-mcp-server",
+  "version": "0.2.0",
+  "description": "An MCP server that leverages official UniFi API",
+  "main": "src/main.py",
+  "keywords": [
+    "unifi",
+    "mcp",
+    "model-context-protocol",
+    "networking"
+  ],
+  "author": "enuno",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enuno/unifi-mcp-server.git"
+  },
+  "mcpName": "io.github.enuno/unifi-mcp-server"
+}

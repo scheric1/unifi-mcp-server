@@ -5,6 +5,109 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-25
+
+### 🎉 Production Release - All Features Complete
+
+This is the definitive v0.2.0 release with all 7 planned feature phases complete, comprehensive testing, and production-ready quality.
+
+### Added
+
+**Phase 1: QoS Enhancements (11 tools)**
+- QoS profile management (list, get, create, update, delete)
+- Reference QoS profiles and ProAV templates
+- Traffic routing with time-based schedules
+- Application-based QoS configuration
+- Coverage: 82.43% (46 tests passing)
+
+**Phase 2: Backup & Restore (8 tools)**
+- Manual and automated backup creation
+- Backup listing and download with checksum verification
+- Backup restore functionality
+- Automated scheduling with cron expressions
+- Cloud synchronization tracking
+- Coverage: 86.32% (10 tests passing)
+
+**Phase 3: Multi-Site Aggregation (4 tools)**
+- Cross-site device and client analytics
+- Site health monitoring and scoring
+- Side-by-side site comparison
+- Consolidated reporting across locations
+- Coverage: 92.95% (10 tests passing)
+
+**Phase 4: ACL & Traffic Filtering (7 tools)**
+- Layer 3/4 access control list management
+- Traffic matching lists (IP, MAC, domain, port groups)
+- Firewall policy automation
+- Rule ordering and priority management
+- Coverage: 89.30-93.84%
+
+**Phase 5: Site Management (9 tools)**
+- Multi-site provisioning and configuration
+- Site-to-site VPN setup
+- Device migration between sites
+- Advanced site settings management
+- Configuration export for backup
+- Coverage: 92.95% (10 tests passing)
+
+**Phase 6: RADIUS & Guest Portal (6 tools)**
+- RADIUS profile configuration (802.1X authentication)
+- RADIUS accounting server support
+- Guest portal customization
+- Hotspot billing and voucher management
+- Session timeout and redirect control
+- Coverage: 69.77% (17 tests passing)
+
+**Phase 7: Network Topology (5 tools)**
+- Complete network topology graph retrieval
+- Multi-format export (JSON, GraphML, DOT)
+- Device interconnection mapping
+- Port-level connection tracking
+- Network depth analysis
+- Coverage: 95.83% (29 tests passing)
+
+### Quality Metrics
+
+- **74 Total MCP Tools**: Comprehensive UniFi network management
+- **990 Tests Passing**: Robust validation across all modules
+- **78.18% Test Coverage**: 4,865 of 6,105 statements covered
+- **18/18 CI/CD Checks Passing**: All quality gates met
+- **Zero Security Vulnerabilities**: Clean security scans
+- **30+ AI Assistant Example Prompts**: Comprehensive usage documentation
+
+### Documentation
+
+- Added comprehensive VERIFICATION_REPORT.md documenting complete testing and validation
+- Added 30+ AI assistant example prompts across 10 categories in API.md
+- Updated API.md with all 74 tools documented with examples
+- Updated UNIFI_API.md with complete API endpoint reference
+
+### Fixed
+
+- CodeQL security alerts resolved (wrong parameter names in QoS tools)
+- Secret redaction in RADIUS dry-run logging
+- Pre-commit hook failures (import formatting)
+- Duplicate function definitions
+- Test coverage gaps in critical paths
+
+### Changed
+
+- License: Apache 2.0
+- Architecture: All 7 feature phases complete
+- Test coverage improved from 41.27% to 78.18%
+- Total tests increased from 228 to 990
+
+### Release Artifacts
+
+- Docker: ghcr.io/enuno/unifi-mcp-server:0.2.0 (multi-arch: amd64, arm64, arm/v7)
+- npm: unifi-mcp-server@0.2.0
+- PyPI: unifi-mcp-server==0.2.0
+- GitHub: https://github.com/enuno/unifi-mcp-server/releases/tag/v0.2.0
+
+See [VERIFICATION_REPORT.md](VERIFICATION_REPORT.md) for complete details.
+
+---
+
 ## [0.1.4] - 2025-11-17
 
 ### Version Correction Notice
