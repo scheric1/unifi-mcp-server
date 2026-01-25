@@ -32,6 +32,7 @@ class AuditLogger:
         user: str | None = None,
         site_id: str | None = None,
         dry_run: bool = False,
+        error: str | None = None,
     ) -> None:
         """Log a mutating operation.
 
@@ -40,6 +41,7 @@ class AuditLogger:
             parameters: Parameters passed to the operation
             result: Result of the operation ("success", "failed", "dry_run")
             user: User who performed the operation (optional)
+            error: Error message if the operation failed (optional)
             site_id: Site ID where operation was performed
             dry_run: Whether this was a dry run
         """
@@ -59,6 +61,9 @@ class AuditLogger:
 
         if site_id:
             audit_record["site_id"] = site_id
+
+        if error:
+            audit_record["error"] = error
 
         # Log to file
         try:
@@ -149,6 +154,7 @@ def log_audit(
     user: str | None = None,
     site_id: str | None = None,
     dry_run: bool = False,
+    error: str | None = None,
     log_file: str | Path | None = None,
 ) -> None:
     """Convenience function to log an audit entry.
@@ -160,10 +166,11 @@ def log_audit(
         user: User who performed the operation
         site_id: Site ID where operation was performed
         dry_run: Whether this was a dry run
+        error: Error message if the operation failed
         log_file: Path to audit log file
     """
     logger = get_audit_logger(log_file)
-    logger.log_operation(operation, parameters, result, user, site_id, dry_run)
+    logger.log_operation(operation, parameters, result, user, site_id, dry_run, error)
 
 
 async def audit_action(
