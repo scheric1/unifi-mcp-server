@@ -23,10 +23,13 @@ from .tools import firewall_zones as firewall_zones_tools
 from .tools import network_config as network_config_tools
 from .tools import networks as networks_tools
 from .tools import port_forwarding as port_fwd_tools
+from .tools import qos as qos_tools
+from .tools import radius as radius_tools
 from .tools import reference_data as ref_tools
 from .tools import site_manager as site_manager_tools
 from .tools import site_vpn as site_vpn_tools
 from .tools import sites as sites_tools
+from .tools import topology as topology_tools
 from .tools import traffic_flows as traffic_flows_tools
 from .tools import traffic_matching_lists as tml_tools
 from .tools import vouchers as vouchers_tools
@@ -500,6 +503,107 @@ async def validate_backup(site_id: str, backup_filename: str) -> dict:
     return await backups_tools.validate_backup(site_id, backup_filename, settings)
 
 
+@mcp.tool()
+async def get_backup_status(operation_id: str) -> dict:
+    """Get the status of an ongoing or completed backup operation.
+
+    Monitor the progress of a backup operation. Useful for tracking long-running
+    system backups.
+
+    Args:
+        operation_id: Backup operation identifier (returned by trigger_backup)
+
+    Returns:
+        Backup operation status including progress and result
+    """
+    return await backups_tools.get_backup_status(operation_id, settings)
+
+
+@mcp.tool()
+async def get_restore_status(operation_id: str) -> dict:
+    """Get the status of an ongoing or completed restore operation.
+
+    Monitor the progress of a restore operation. Critical for tracking restore
+    progress as controller may restart during restore.
+
+    Args:
+        operation_id: Restore operation identifier (returned by restore_backup)
+
+    Returns:
+        Restore operation status with rollback availability
+    """
+    return await backups_tools.get_restore_status(operation_id, settings)
+
+
+@mcp.tool()
+async def schedule_backups(
+    site_id: str,
+    backup_type: str,
+    frequency: str,
+    time_of_day: str,
+    enabled: bool = True,
+    retention_days: int = 30,
+    max_backups: int = 10,
+    day_of_week: int | None = None,
+    day_of_month: int | None = None,
+    cloud_backup_enabled: bool = False,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Configure automated backup schedule (requires confirm=True).
+
+    Set up recurring backups to run automatically at specified intervals.
+
+    Args:
+        site_id: Site identifier
+        backup_type: "network" or "system"
+        frequency: "daily", "weekly", or "monthly"
+        time_of_day: Time in HH:MM format (24-hour)
+        enabled: Whether schedule is enabled (default: True)
+        retention_days: Days to retain backups (1-365, default: 30)
+        max_backups: Maximum backups to keep (1-100, default: 10)
+        day_of_week: For weekly: 0=Monday, 6=Sunday
+        day_of_month: For monthly: 1-31
+        cloud_backup_enabled: Sync to cloud (default: False)
+        confirm: Must be True to execute
+        dry_run: Validate without configuring (default: False)
+
+    Returns:
+        Backup schedule configuration details
+    """
+    return await backups_tools.schedule_backups(
+        site_id,
+        backup_type,
+        frequency,
+        time_of_day,
+        settings,
+        enabled,
+        retention_days,
+        max_backups,
+        day_of_week,
+        day_of_month,
+        cloud_backup_enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def get_backup_schedule(site_id: str) -> dict:
+    """Get the configured automated backup schedule for a site.
+
+    Retrieve details about the current backup schedule including frequency,
+    retention policy, and next scheduled execution.
+
+    Args:
+        site_id: Site identifier
+
+    Returns:
+        Backup schedule configuration, or indication if no schedule exists
+    """
+    return await backups_tools.get_backup_schedule(site_id, settings)
+
+
 # Network Configuration Tools (Phase 4)
 @mcp.tool()
 async def create_network(
@@ -961,6 +1065,213 @@ async def bulk_delete_vouchers(
     )
 
 
+# RADIUS Profile Tools
+@mcp.tool()
+async def list_radius_profiles(site_id: str) -> list[dict]:
+    """List all RADIUS profiles for a site."""
+    return await radius_tools.list_radius_profiles(site_id, settings)
+
+
+@mcp.tool()
+async def get_radius_profile(site_id: str, profile_id: str) -> dict:
+    """Get details for a specific RADIUS profile."""
+    return await radius_tools.get_radius_profile(site_id, profile_id, settings)
+
+
+@mcp.tool()
+async def create_radius_profile(
+    site_id: str,
+    name: str,
+    auth_server: str,
+    auth_secret: str,
+    auth_port: int = 1812,
+    acct_server: str | None = None,
+    acct_port: int = 1813,
+    acct_secret: str | None = None,
+    use_same_secret: bool = True,
+    vlan_enabled: bool = False,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new RADIUS profile (requires confirm=True)."""
+    return await radius_tools.create_radius_profile(
+        site_id,
+        name,
+        auth_server,
+        auth_secret,
+        settings,
+        auth_port,
+        acct_server,
+        acct_port,
+        acct_secret,
+        use_same_secret,
+        vlan_enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def update_radius_profile(
+    site_id: str,
+    profile_id: str,
+    name: str | None = None,
+    auth_server: str | None = None,
+    auth_secret: str | None = None,
+    auth_port: int | None = None,
+    acct_server: str | None = None,
+    acct_port: int | None = None,
+    acct_secret: str | None = None,
+    vlan_enabled: bool | None = None,
+    enabled: bool | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Update an existing RADIUS profile (requires confirm=True)."""
+    return await radius_tools.update_radius_profile(
+        site_id,
+        profile_id,
+        settings,
+        name,
+        auth_server,
+        auth_secret,
+        auth_port,
+        acct_server,
+        acct_port,
+        acct_secret,
+        vlan_enabled,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_radius_profile(
+    site_id: str, profile_id: str, confirm: bool = False, dry_run: bool = False
+) -> dict:
+    """Delete a RADIUS profile (requires confirm=True)."""
+    return await radius_tools.delete_radius_profile(site_id, profile_id, settings, confirm, dry_run)
+
+
+# RADIUS Account Tools
+@mcp.tool()
+async def list_radius_accounts(site_id: str) -> list[dict]:
+    """List all RADIUS accounts for a site."""
+    return await radius_tools.list_radius_accounts(site_id, settings)
+
+
+@mcp.tool()
+async def create_radius_account(
+    site_id: str,
+    username: str,
+    password: str,
+    vlan_id: int | None = None,
+    enabled: bool = True,
+    note: str | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new RADIUS account (requires confirm=True)."""
+    return await radius_tools.create_radius_account(
+        site_id, username, password, settings, vlan_id, enabled, note, confirm, dry_run
+    )
+
+
+@mcp.tool()
+async def delete_radius_account(
+    site_id: str, account_id: str, confirm: bool = False, dry_run: bool = False
+) -> dict:
+    """Delete a RADIUS account (requires confirm=True)."""
+    return await radius_tools.delete_radius_account(site_id, account_id, settings, confirm, dry_run)
+
+
+# Guest Portal Tools
+@mcp.tool()
+async def get_guest_portal_config(site_id: str) -> dict:
+    """Get guest portal configuration for a site."""
+    return await radius_tools.get_guest_portal_config(site_id, settings)
+
+
+@mcp.tool()
+async def configure_guest_portal(
+    site_id: str,
+    portal_title: str | None = None,
+    auth_method: str | None = None,
+    password: str | None = None,
+    session_timeout: int | None = None,
+    redirect_enabled: bool | None = None,
+    redirect_url: str | None = None,
+    terms_of_service_enabled: bool | None = None,
+    terms_of_service_text: str | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Configure guest portal settings (requires confirm=True)."""
+    return await radius_tools.configure_guest_portal(
+        site_id,
+        settings,
+        portal_title,
+        auth_method,
+        password,
+        session_timeout,
+        redirect_enabled,
+        redirect_url,
+        terms_of_service_enabled,
+        terms_of_service_text,
+        confirm,
+        dry_run,
+    )
+
+
+# Hotspot Package Tools
+@mcp.tool()
+async def list_hotspot_packages(site_id: str) -> list[dict]:
+    """List all hotspot packages for a site."""
+    return await radius_tools.list_hotspot_packages(site_id, settings)
+
+
+@mcp.tool()
+async def create_hotspot_package(
+    site_id: str,
+    name: str,
+    duration_minutes: int,
+    download_limit_kbps: int | None = None,
+    upload_limit_kbps: int | None = None,
+    download_quota_mb: int | None = None,
+    upload_quota_mb: int | None = None,
+    price: float | None = None,
+    currency: str = "USD",
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new hotspot package (requires confirm=True)."""
+    return await radius_tools.create_hotspot_package(
+        site_id,
+        name,
+        duration_minutes,
+        settings,
+        download_limit_kbps,
+        upload_limit_kbps,
+        download_quota_mb,
+        upload_quota_mb,
+        price,
+        currency,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_hotspot_package(
+    site_id: str, package_id: str, confirm: bool = False, dry_run: bool = False
+) -> dict:
+    """Delete a hotspot package (requires confirm=True)."""
+    return await radius_tools.delete_hotspot_package(
+        site_id, package_id, settings, confirm, dry_run
+    )
+
+
 # Firewall Zone Tools
 @mcp.tool()
 async def list_firewall_zones(site_id: str) -> list[dict]:
@@ -997,6 +1308,278 @@ async def update_firewall_zone(
     return await firewall_zones_tools.update_firewall_zone(
         site_id, firewall_zone_id, settings, name, description, network_ids, confirm, dry_run
     )
+
+
+# QoS Profile Management Tools
+@mcp.tool()
+async def list_qos_profiles(
+    site_id: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """List all QoS profiles for traffic prioritization and shaping."""
+    return await qos_tools.list_qos_profiles(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def get_qos_profile(site_id: str, profile_id: str) -> dict:
+    """Get details for a specific QoS profile."""
+    return await qos_tools.get_qos_profile(site_id, profile_id, settings)
+
+
+@mcp.tool()
+async def create_qos_profile(
+    site_id: str,
+    name: str,
+    priority_level: int,
+    description: str | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_down_kbps: int | None = None,
+    bandwidth_limit_up_kbps: int | None = None,
+    bandwidth_guaranteed_down_kbps: int | None = None,
+    bandwidth_guaranteed_up_kbps: int | None = None,
+    ports: list[int] | None = None,
+    protocols: list[str] | None = None,
+    applications: list[str] | None = None,
+    categories: list[str] | None = None,
+    schedule_enabled: bool = False,
+    schedule_days: list[str] | None = None,
+    schedule_time_start: str | None = None,
+    schedule_time_end: str | None = None,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new QoS profile with comprehensive traffic shaping (requires confirm=True)."""
+    return await qos_tools.create_qos_profile(
+        site_id,
+        name,
+        priority_level,
+        settings,
+        description,
+        dscp_marking,
+        bandwidth_limit_down_kbps,
+        bandwidth_limit_up_kbps,
+        bandwidth_guaranteed_down_kbps,
+        bandwidth_guaranteed_up_kbps,
+        ports,
+        protocols,
+        applications,
+        categories,
+        schedule_enabled,
+        schedule_days,
+        schedule_time_start,
+        schedule_time_end,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def update_qos_profile(
+    site_id: str,
+    profile_id: str,
+    name: str | None = None,
+    priority_level: int | None = None,
+    description: str | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_down_kbps: int | None = None,
+    bandwidth_limit_up_kbps: int | None = None,
+    bandwidth_guaranteed_down_kbps: int | None = None,
+    bandwidth_guaranteed_up_kbps: int | None = None,
+    enabled: bool | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Update an existing QoS profile (requires confirm=True)."""
+    return await qos_tools.update_qos_profile(
+        site_id,
+        profile_id,
+        settings,
+        name,
+        priority_level,
+        description,
+        dscp_marking,
+        bandwidth_limit_down_kbps,
+        bandwidth_limit_up_kbps,
+        bandwidth_guaranteed_down_kbps,
+        bandwidth_guaranteed_up_kbps,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_qos_profile(site_id: str, profile_id: str, confirm: bool = False) -> dict:
+    """Delete a QoS profile (requires confirm=True)."""
+    return await qos_tools.delete_qos_profile(site_id, profile_id, settings, confirm)
+
+
+# ProAV Profile Management Tools
+@mcp.tool()
+async def list_proav_templates() -> list[dict]:
+    """List available ProAV protocol templates (Dante, Q-SYS, SDVoE, AVB, RAVENNA, NDI, SMPTE 2110) and reference profiles."""
+    return await qos_tools.list_proav_templates(settings)
+
+
+@mcp.tool()
+async def create_proav_profile(
+    site_id: str,
+    protocol: str,
+    name: str | None = None,
+    customize_ports: list[int] | None = None,
+    customize_bandwidth_down_kbps: int | None = None,
+    customize_bandwidth_up_kbps: int | None = None,
+    customize_dscp: int | None = None,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a QoS profile from a ProAV or reference template (requires confirm=True)."""
+    return await qos_tools.create_proav_profile(
+        site_id,
+        protocol,
+        settings,
+        name,
+        customize_ports,
+        customize_bandwidth_down_kbps,
+        customize_bandwidth_up_kbps,
+        customize_dscp,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def validate_proav_profile(protocol: str, bandwidth_mbps: int | None = None) -> dict:
+    """Validate ProAV profile requirements and provide recommendations."""
+    return await qos_tools.validate_proav_profile(protocol, settings, bandwidth_mbps)
+
+
+# Smart Queue Management Tools
+@mcp.tool()
+async def get_smart_queue_config(site_id: str) -> dict:
+    """Get Smart Queue Management (SQM) configuration for bufferbloat mitigation."""
+    return await qos_tools.get_smart_queue_config(site_id, settings)
+
+
+@mcp.tool()
+async def configure_smart_queue(
+    site_id: str,
+    wan_id: str,
+    download_kbps: int,
+    upload_kbps: int,
+    algorithm: str = "fq_codel",
+    overhead_bytes: int = 44,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Configure Smart Queue Management (SQM) for bufferbloat mitigation (requires confirm=True)."""
+    return await qos_tools.configure_smart_queue(
+        site_id,
+        wan_id,
+        download_kbps,
+        upload_kbps,
+        settings,
+        algorithm,
+        overhead_bytes,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def disable_smart_queue(site_id: str, wan_id: str, confirm: bool = False) -> dict:
+    """Disable Smart Queue Management (SQM) (requires confirm=True)."""
+    return await qos_tools.disable_smart_queue(site_id, wan_id, settings, confirm)
+
+
+# Traffic Route Management Tools
+@mcp.tool()
+async def list_traffic_routes(
+    site_id: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """List all policy-based traffic routing rules."""
+    return await qos_tools.list_traffic_routes(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def create_traffic_route(
+    site_id: str,
+    name: str,
+    action: str,
+    description: str | None = None,
+    source_ip: str | None = None,
+    destination_ip: str | None = None,
+    source_port: int | None = None,
+    destination_port: int | None = None,
+    protocol: str | None = None,
+    vlan_id: int | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_kbps: int | None = None,
+    priority: int = 100,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new policy-based traffic routing rule (requires confirm=True)."""
+    return await qos_tools.create_traffic_route(
+        site_id,
+        name,
+        action,
+        settings,
+        description,
+        source_ip,
+        destination_ip,
+        source_port,
+        destination_port,
+        protocol,
+        vlan_id,
+        dscp_marking,
+        bandwidth_limit_kbps,
+        priority,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def update_traffic_route(
+    site_id: str,
+    route_id: str,
+    name: str | None = None,
+    action: str | None = None,
+    description: str | None = None,
+    enabled: bool | None = None,
+    priority: int | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Update an existing traffic routing rule (requires confirm=True)."""
+    return await qos_tools.update_traffic_route(
+        site_id,
+        route_id,
+        settings,
+        name,
+        action,
+        description,
+        enabled,
+        priority,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_traffic_route(site_id: str, route_id: str, confirm: bool = False) -> dict:
+    """Delete a traffic routing rule (requires confirm=True)."""
+    return await qos_tools.delete_traffic_route(site_id, route_id, settings, confirm)
 
 
 # ACL Tools
@@ -1364,6 +1947,107 @@ async def delete_traffic_matching_list(
     )
 
 
+# Network Topology Tools
+@mcp.tool()
+async def get_network_topology(
+    site_id: str,
+    include_coordinates: bool = False,
+) -> dict:
+    """
+    Retrieve complete network topology graph.
+
+    Fetches the network topology including all devices, clients, and their
+    interconnections. Optionally includes position coordinates for visualization.
+
+    Args:
+        site_id: Site identifier ("default" for default site)
+        include_coordinates: Whether to calculate node position coordinates
+
+    Returns:
+        Network diagram with nodes, connections, and statistics
+    """
+    return await topology_tools.get_network_topology(site_id, settings, include_coordinates)
+
+
+@mcp.tool()
+async def get_device_connections(
+    site_id: str,
+    device_id: str | None = None,
+) -> list[dict]:
+    """
+    Get device interconnection details.
+
+    Retrieves detailed connection information for a specific device or all devices.
+
+    Args:
+        site_id: Site identifier
+        device_id: Specific device ID, or None for all devices
+
+    Returns:
+        List of connection dictionaries
+    """
+    return await topology_tools.get_device_connections(site_id, device_id, settings)
+
+
+@mcp.tool()
+async def get_port_mappings(
+    site_id: str,
+    device_id: str,
+) -> dict:
+    """
+    Get port-level connection mappings for a device.
+
+    Retrieves detailed information about which ports are connected to which devices/clients.
+
+    Args:
+        site_id: Site identifier
+        device_id: Device ID
+
+    Returns:
+        Dictionary with device_id and port mapping information
+    """
+    return await topology_tools.get_port_mappings(site_id, device_id, settings)
+
+
+@mcp.tool()
+async def export_topology(
+    site_id: str,
+    format: str,
+) -> str:
+    """
+    Export network topology in various formats.
+
+    Exports the network topology as JSON, GraphML (XML), or DOT (Graphviz) format.
+
+    Args:
+        site_id: Site identifier
+        format: Export format ("json", "graphml", or "dot")
+
+    Returns:
+        Topology data as a formatted string
+    """
+    return await topology_tools.export_topology(site_id, format, settings)  # type: ignore
+
+
+@mcp.tool()
+async def get_topology_statistics(
+    site_id: str,
+) -> dict:
+    """
+    Get network topology statistics.
+
+    Retrieves statistical summary of the network topology including device counts,
+    client counts, connection counts, and network depth.
+
+    Args:
+        site_id: Site identifier
+
+    Returns:
+        Dictionary with topology statistics
+    """
+    return await topology_tools.get_topology_statistics(site_id, settings)
+
+
 # VPN Management Tools
 @mcp.tool()
 async def list_vpn_tunnels(
@@ -1424,17 +2108,7 @@ async def update_site_to_site_vpn(
     )
 
 
-# RADIUS & Reference Data Tools
-@mcp.tool()
-async def list_radius_profiles(
-    site_id: str,
-    limit: int | None = None,
-    offset: int | None = None,
-) -> list[dict]:
-    """List all RADIUS profiles in a site (read-only)."""
-    return await ref_tools.list_radius_profiles(site_id, settings, limit, offset)
-
-
+# Reference Data Tools
 @mcp.tool()
 async def list_device_tags(
     site_id: str,
@@ -1474,6 +2148,24 @@ async def get_cross_site_statistics() -> dict:
 async def list_vantage_points() -> list[dict]:
     """List all Vantage Points."""
     return await site_manager_tools.list_vantage_points(settings)
+
+
+@mcp.tool()
+async def get_site_inventory(site_id: str | None = None) -> dict:
+    """Get comprehensive inventory for a site or all sites."""
+    return await site_manager_tools.get_site_inventory(settings, site_id)  # type: ignore[return-value]
+
+
+@mcp.tool()
+async def compare_site_performance() -> dict:
+    """Compare performance metrics across all sites."""
+    return await site_manager_tools.compare_site_performance(settings)
+
+
+@mcp.tool()
+async def search_across_sites(query: str, search_type: str = "all") -> dict:
+    """Search for resources across all sites (device/client/network)."""
+    return await site_manager_tools.search_across_sites(settings, query, search_type)
 
 
 # Additional MCP Resources

@@ -9,8 +9,12 @@ from src.tools.backups import (
     delete_backup,
     download_backup,
     get_backup_details,
+    get_backup_schedule,
+    get_backup_status,
+    get_restore_status,
     list_backups,
     restore_backup,
+    schedule_backups,
     trigger_backup,
     validate_backup,
 )
@@ -462,3 +466,320 @@ async def test_validate_backup_not_found(mock_settings):
 
         assert result["is_valid"] is False
         assert len(result["errors"]) > 0
+
+
+# Tests for new backup status and scheduling tools
+
+
+@pytest.mark.asyncio
+async def test_get_backup_status_success(mock_settings):
+    mock_status = {
+        "status": "completed",
+        "progress": 100,
+        "step": "Finalizing",
+        "started_at": "2026-01-24T10:00:00Z",
+        "completed_at": "2026-01-24T10:02:30Z",
+        "backup": {
+            "id": "backup-123",
+            "filename": "backup_20260124.unf",
+        },
+    }
+
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_backup_status = AsyncMock(return_value=mock_status)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_backup_status("op_backup_abc123", mock_settings)
+
+        assert result["status"] == "completed"
+        assert result["progress_percent"] == 100
+        assert result["operation_id"] == "op_backup_abc123"
+        mock_client.get_backup_status.assert_called_once_with(operation_id="op_backup_abc123")
+
+
+@pytest.mark.asyncio
+async def test_get_backup_status_fallback(mock_settings):
+    """Test fallback when API doesn't support status endpoint."""
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    # Simulate API not having get_backup_status method
+    del mock_client.get_backup_status
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_backup_status("op_backup_abc123", mock_settings)
+
+        assert result["status"] == "completed"
+        assert result["progress_percent"] == 100
+        assert "not available" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_get_restore_status_success(mock_settings):
+    mock_status = {
+        "backup_id": "backup-123",
+        "status": "in_progress",
+        "progress": 45,
+        "step": "Restoring device configurations",
+        "started_at": "2026-01-24T10:05:00Z",
+        "pre_restore_backup_id": "backup-pre-restore-456",
+        "can_rollback": True,
+    }
+
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_restore_status = AsyncMock(return_value=mock_status)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_restore_status("op_restore_xyz789", mock_settings)
+
+        assert result["status"] == "in_progress"
+        assert result["progress_percent"] == 45
+        assert result["can_rollback"] is True
+        assert result["pre_restore_backup_id"] == "backup-pre-restore-456"
+        mock_client.get_restore_status.assert_called_once_with(operation_id="op_restore_xyz789")
+
+
+@pytest.mark.asyncio
+async def test_get_restore_status_connection_error(mock_settings):
+    """Test graceful handling when controller is restarting during restore."""
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_restore_status = AsyncMock(
+        side_effect=ConnectionError("Controller unavailable")
+    )
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_restore_status("op_restore_xyz789", mock_settings)
+
+        # Should handle gracefully and indicate in_progress
+        assert result["status"] == "in_progress"
+        assert "unavailable" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_daily_success(mock_settings):
+    mock_response = {
+        "schedule_id": "schedule_daily_network",
+        "next_run": "2026-01-25T03:00:00Z",
+    }
+
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.configure_backup_schedule = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        with patch.object(backups_module, "log_audit"):
+            result = await schedule_backups(
+                site_id="default",
+                backup_type="network",
+                frequency="daily",
+                time_of_day="03:00",
+                retention_days=30,
+                max_backups=10,
+                confirm=True,
+                settings=mock_settings,
+            )
+
+            assert result["schedule_id"] == "schedule_daily_network"
+            assert result["frequency"] == "daily"
+            assert result["backup_type"] == "network"
+            assert result["time_of_day"] == "03:00"
+            assert result["next_run"] == "2026-01-25T03:00:00Z"
+            mock_client.configure_backup_schedule.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_weekly_success(mock_settings):
+    mock_response = {
+        "schedule_id": "schedule_weekly_system",
+        "next_run": "2026-01-26T02:00:00Z",
+    }
+
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.configure_backup_schedule = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        with patch.object(backups_module, "log_audit"):
+            result = await schedule_backups(
+                site_id="default",
+                backup_type="system",
+                frequency="weekly",
+                time_of_day="02:00",
+                day_of_week=6,  # Sunday
+                retention_days=90,
+                cloud_backup_enabled=True,
+                confirm=True,
+                settings=mock_settings,
+            )
+
+            assert result["frequency"] == "weekly"
+            assert result["day_of_week"] == 6
+            assert result["cloud_backup_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_dry_run(mock_settings):
+    with patch.object(backups_module, "log_audit"):
+        result = await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="daily",
+            time_of_day="03:00",
+            confirm=True,
+            dry_run=True,
+            settings=mock_settings,
+        )
+
+        assert result["dry_run"] is True
+        assert result["would_configure"]["frequency"] == "daily"
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_no_confirm(mock_settings):
+    with pytest.raises(ValidationError) as excinfo:
+        await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="daily",
+            time_of_day="03:00",
+            confirm=False,
+            settings=mock_settings,
+        )
+    assert "requires confirmation" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_invalid_frequency(mock_settings):
+    with pytest.raises(ValidationError) as excinfo:
+        await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="hourly",  # Invalid
+            time_of_day="03:00",
+            confirm=True,
+            settings=mock_settings,
+        )
+    assert "Invalid frequency" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_invalid_time(mock_settings):
+    with pytest.raises(ValidationError) as excinfo:
+        await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="daily",
+            time_of_day="25:00",  # Invalid hour
+            confirm=True,
+            settings=mock_settings,
+        )
+    assert "Invalid time_of_day" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_weekly_missing_day(mock_settings):
+    with pytest.raises(ValidationError) as excinfo:
+        await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="weekly",
+            time_of_day="03:00",
+            # Missing day_of_week
+            confirm=True,
+            settings=mock_settings,
+        )
+    assert "day_of_week required" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_schedule_backups_monthly_missing_day(mock_settings):
+    with pytest.raises(ValidationError) as excinfo:
+        await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="monthly",
+            time_of_day="03:00",
+            # Missing day_of_month
+            confirm=True,
+            settings=mock_settings,
+        )
+    assert "day_of_month required" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_get_backup_schedule_configured(mock_settings):
+    mock_schedule = {
+        "schedule_id": "schedule_daily_network",
+        "enabled": True,
+        "backup_type": "network",
+        "frequency": "daily",
+        "time_of_day": "03:00",
+        "retention_days": 30,
+        "max_backups": 10,
+        "cloud_backup_enabled": True,
+        "last_run": "2026-01-24T03:00:00Z",
+        "last_backup_id": "backup-123",
+        "next_run": "2026-01-25T03:00:00Z",
+    }
+
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_backup_schedule = AsyncMock(return_value=mock_schedule)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_backup_schedule("default", mock_settings)
+
+        assert result["configured"] is True
+        assert result["enabled"] is True
+        assert result["frequency"] == "daily"
+        assert result["time_of_day"] == "03:00"
+        assert result["next_run"] == "2026-01-25T03:00:00Z"
+        mock_client.get_backup_schedule.assert_called_once_with(site_id="default")
+
+
+@pytest.mark.asyncio
+async def test_get_backup_schedule_not_configured(mock_settings):
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_backup_schedule = AsyncMock(return_value=None)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_backup_schedule("default", mock_settings)
+
+        assert result["configured"] is False
+        assert "No automated backup schedule" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_get_backup_schedule_fallback(mock_settings):
+    """Test fallback when API doesn't support scheduling."""
+    mock_client = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    # Simulate API not having get_backup_schedule method
+    del mock_client.get_backup_schedule
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch.object(backups_module, "UniFiClient", return_value=mock_client):
+        result = await get_backup_schedule("default", mock_settings)
+
+        assert result["configured"] is False
+        assert "not supported" in result["message"]

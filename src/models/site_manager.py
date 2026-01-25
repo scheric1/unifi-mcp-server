@@ -58,3 +58,63 @@ class VantagePoint(BaseModel):
     longitude: float | None = Field(None, description="Longitude")
     status: Literal["active", "inactive"] = Field(..., description="Status")
     site_ids: list[str] = Field(default_factory=list, description="Associated site IDs")
+
+
+class SiteInventory(BaseModel):
+    """Comprehensive inventory for a single site."""
+
+    site_id: str = Field(..., description="Site identifier")
+    site_name: str = Field(..., description="Site name")
+    device_count: int = Field(0, description="Total devices")
+    device_types: dict[str, int] = Field(default_factory=dict, description="Count by device type")
+    client_count: int = Field(0, description="Total active clients")
+    network_count: int = Field(0, description="Total networks/VLANs")
+    ssid_count: int = Field(0, description="Total SSIDs")
+    uplink_count: int = Field(0, description="Total WAN uplinks")
+    vpn_tunnel_count: int = Field(0, description="Total VPN tunnels")
+    firewall_rule_count: int = Field(0, description="Total firewall rules")
+    last_updated: str = Field(..., description="Inventory timestamp (ISO)")
+
+
+class SitePerformanceMetrics(BaseModel):
+    """Performance metrics for a single site."""
+
+    site_id: str = Field(..., description="Site identifier")
+    site_name: str = Field(..., description="Site name")
+    avg_latency_ms: float | None = Field(None, description="Average latency")
+    avg_bandwidth_up_mbps: float | None = Field(None, description="Average upload bandwidth")
+    avg_bandwidth_down_mbps: float | None = Field(None, description="Average download bandwidth")
+    uptime_percentage: float = Field(0.0, description="Uptime percentage")
+    device_online_percentage: float = Field(0.0, description="Percentage of devices online")
+    client_count: int = Field(0, description="Active clients")
+    health_status: Literal["healthy", "degraded", "down"] = Field(..., description="Overall status")
+
+
+class CrossSitePerformanceComparison(BaseModel):
+    """Performance comparison across multiple sites."""
+
+    total_sites: int = Field(0, description="Number of sites compared")
+    best_performing_site: SitePerformanceMetrics | None = Field(
+        None, description="Site with best overall performance"
+    )
+    worst_performing_site: SitePerformanceMetrics | None = Field(
+        None, description="Site with worst overall performance"
+    )
+    average_uptime: float = Field(0.0, description="Average uptime across all sites")
+    average_latency_ms: float | None = Field(None, description="Average latency across sites")
+    site_metrics: list[SitePerformanceMetrics] = Field(
+        default_factory=list, description="Metrics for each site"
+    )
+
+
+class CrossSiteSearchResult(BaseModel):
+    """Search result from cross-site search."""
+
+    total_results: int = Field(0, description="Total number of results found")
+    search_query: str = Field(..., description="Original search query")
+    result_type: Literal["device", "client", "network", "all"] = Field(
+        ..., description="Type of results"
+    )
+    results: list[dict] = Field(
+        default_factory=list, description="Search results with site context"
+    )

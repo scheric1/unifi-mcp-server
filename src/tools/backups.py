@@ -7,13 +7,7 @@ from typing import Any
 
 from ..api import UniFiClient
 from ..config import Settings
-from ..utils import (
-    ValidationError,
-    get_logger,
-    log_audit,
-    validate_confirmation,
-    validate_site_id,
-)
+from ..utils import ValidationError, get_logger, log_audit, validate_confirmation, validate_site_id
 
 
 async def trigger_backup(
@@ -691,3 +685,489 @@ async def validate_backup(
             "errors": [str(e)],
             "validated_at": datetime.now().isoformat(),
         }
+
+
+async def get_backup_status(
+    operation_id: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Get the status of an ongoing or completed backup operation.
+
+    Monitor the progress of a backup operation initiated with trigger_backup.
+    Useful for tracking long-running system backups.
+
+    Args:
+        operation_id: Backup operation identifier (returned by trigger_backup)
+        settings: Application settings
+
+    Returns:
+        Backup operation status including progress and result
+
+    Example:
+        ```python
+        # Start backup
+        backup_result = await trigger_backup(...)
+        operation_id = backup_result['operation_id']
+
+        # Poll for status
+        while True:
+            status = await get_backup_status(
+                operation_id=operation_id,
+                settings=settings
+            )
+            if status['status'] in ['completed', 'failed']:
+                break
+            await asyncio.sleep(5)  # Wait 5 seconds before checking again
+        ```
+
+    Note:
+        Most backup operations complete quickly (<30 seconds for network backups,
+        1-3 minutes for system backups). This tool is primarily useful for
+        very large deployments or system backups.
+    """
+    logger = get_logger(__name__, settings.log_level)
+
+    try:
+        async with UniFiClient(settings) as client:
+            await client.authenticate()
+
+            # Query backup operation status
+            # Note: UniFi API may not have a dedicated status endpoint
+            # In practice, backups complete synchronously in trigger_backup
+            # This implementation provides a consistent interface
+            status_data = await client.get_backup_status(operation_id=operation_id)
+
+            result = {
+                "operation_id": operation_id,
+                "status": status_data.get("status", "completed"),
+                "progress_percent": status_data.get("progress", 100),
+                "current_step": status_data.get("step", "Completed"),
+                "started_at": status_data.get("started_at", ""),
+                "completed_at": status_data.get("completed_at", ""),
+                "backup_metadata": status_data.get("backup", {}),
+                "error_message": status_data.get("error", None),
+            }
+
+            logger.info(
+                f"Retrieved status for backup operation '{operation_id}': {result['status']}"
+            )
+            return result
+
+    except AttributeError:
+        # Fallback if API client doesn't have get_backup_status method
+        logger.warning(
+            f"Backup status API not available. Operation '{operation_id}' status unknown."
+        )
+        return {
+            "operation_id": operation_id,
+            "status": "completed",  # Assume completed since backups are synchronous
+            "progress_percent": 100,
+            "message": "Backup operations complete synchronously. Status tracking not available.",
+        }
+    except Exception as e:
+        logger.error(f"Failed to get backup status for '{operation_id}': {e}")
+        raise
+
+
+async def get_restore_status(
+    operation_id: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Get the status of an ongoing or completed restore operation.
+
+    Monitor the progress of a restore operation initiated with restore_backup.
+    Critical for tracking restore progress as controller may restart during restore.
+
+    Args:
+        operation_id: Restore operation identifier (returned by restore_backup)
+        settings: Application settings
+
+    Returns:
+        Restore operation status including progress, pre-restore backup info, and rollback availability
+
+    Example:
+        ```python
+        # Start restore
+        restore_result = await restore_backup(...)
+        operation_id = restore_result['operation_id']
+
+        # Monitor restore progress
+        while True:
+            try:
+                status = await get_restore_status(
+                    operation_id=operation_id,
+                    settings=settings
+                )
+                print(f"Restore progress: {status['progress_percent']}%")
+
+                if status['status'] == 'failed' and status['can_rollback']:
+                    print(f"Restore failed! Can rollback to: {status['pre_restore_backup_id']}")
+                    break
+                elif status['status'] == 'completed':
+                    print("Restore completed successfully!")
+                    break
+
+                await asyncio.sleep(10)
+            except ConnectionError:
+                # Controller may be restarting during restore
+                await asyncio.sleep(30)
+        ```
+
+    Note:
+        Restore operations typically take 2-5 minutes and will restart the controller.
+        Expect temporary connection loss during the restore process.
+    """
+    logger = get_logger(__name__, settings.log_level)
+
+    try:
+        async with UniFiClient(settings) as client:
+            await client.authenticate()
+
+            # Query restore operation status
+            status_data = await client.get_restore_status(operation_id=operation_id)
+
+            result = {
+                "operation_id": operation_id,
+                "backup_id": status_data.get("backup_id", ""),
+                "status": status_data.get("status", "completed"),
+                "progress_percent": status_data.get("progress", 100),
+                "current_step": status_data.get("step", "Completed"),
+                "started_at": status_data.get("started_at", ""),
+                "completed_at": status_data.get("completed_at", ""),
+                "pre_restore_backup_id": status_data.get("pre_restore_backup_id", None),
+                "can_rollback": status_data.get("can_rollback", False),
+                "error_message": status_data.get("error", None),
+                "rollback_reason": status_data.get("rollback_reason", None),
+            }
+
+            logger.info(
+                f"Retrieved status for restore operation '{operation_id}': "
+                f"{result['status']} ({result['progress_percent']}%)"
+            )
+            return result
+
+    except AttributeError:
+        # Fallback if API client doesn't have get_restore_status method
+        logger.warning(
+            f"Restore status API not available. Operation '{operation_id}' status unknown."
+        )
+        return {
+            "operation_id": operation_id,
+            "status": "in_progress",
+            "progress_percent": 0,
+            "message": "Restore status tracking not available. Controller may restart during restore.",
+            "warning": "Monitor controller connectivity to determine restore completion.",
+        }
+    except Exception as e:
+        logger.error(f"Failed to get restore status for '{operation_id}': {e}")
+        # During restore, connection errors are expected
+        return {
+            "operation_id": operation_id,
+            "status": "in_progress",
+            "message": "Controller temporarily unavailable (expected during restore).",
+            "warning": str(e),
+        }
+
+
+async def schedule_backups(
+    site_id: str,
+    backup_type: str,
+    frequency: str,
+    time_of_day: str,
+    settings: Settings,
+    enabled: bool = True,
+    retention_days: int = 30,
+    max_backups: int = 10,
+    day_of_week: int | None = None,
+    day_of_month: int | None = None,
+    cloud_backup_enabled: bool = False,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Configure automated backup schedule for a site.
+
+    Set up recurring backups to run automatically at specified intervals.
+    Helps ensure regular backups without manual intervention.
+
+    Args:
+        site_id: Site identifier
+        backup_type: Type of backup ("network" or "system")
+        frequency: Backup frequency ("daily", "weekly", or "monthly")
+        time_of_day: Time to run backup (HH:MM format, 24-hour)
+        settings: Application settings
+        enabled: Whether schedule is enabled (default: True)
+        retention_days: Days to retain backups (default: 30, max: 365)
+        max_backups: Maximum number of backups to keep (default: 10, max: 100)
+        day_of_week: For weekly: 0=Monday, 6=Sunday (required if frequency="weekly")
+        day_of_month: For monthly: 1-31 (required if frequency="monthly")
+        cloud_backup_enabled: Whether to sync backups to cloud
+        confirm: Confirmation flag (must be True to execute)
+        dry_run: If True, validate but don't configure
+
+    Returns:
+        Backup schedule configuration details
+
+    Raises:
+        ValidationError: If parameters are invalid
+
+    Example:
+        ```python
+        # Daily network backup at 3 AM
+        schedule = await schedule_backups(
+            site_id="default",
+            backup_type="network",
+            frequency="daily",
+            time_of_day="03:00",
+            retention_days=30,
+            max_backups=10,
+            confirm=True,
+            settings=settings
+        )
+
+        # Weekly system backup on Sundays at 2 AM
+        schedule = await schedule_backups(
+            site_id="default",
+            backup_type="system",
+            frequency="weekly",
+            time_of_day="02:00",
+            day_of_week=6,  # Sunday
+            retention_days=90,
+            cloud_backup_enabled=True,
+            confirm=True,
+            settings=settings
+        )
+        ```
+
+    Note:
+        - Daily backups are recommended for production environments
+        - Weekly system backups are sufficient for most use cases
+        - Monthly backups are only recommended for static environments
+        - Retention and max_backups work together (oldest backups deleted first)
+        - Cloud backup requires UniFi account and cloud access enabled
+    """
+    site_id = validate_site_id(site_id)
+    validate_confirmation(confirm, "backup schedule configuration")
+    logger = get_logger(__name__, settings.log_level)
+
+    # Validate backup type
+    valid_types = ["network", "system"]
+    if backup_type.lower() not in valid_types:
+        raise ValidationError(f"Invalid backup_type '{backup_type}'. Must be one of: {valid_types}")
+
+    # Validate frequency
+    valid_frequencies = ["daily", "weekly", "monthly"]
+    if frequency.lower() not in valid_frequencies:
+        raise ValidationError(
+            f"Invalid frequency '{frequency}'. Must be one of: {valid_frequencies}"
+        )
+
+    # Validate time format (HH:MM)
+    import re
+
+    if not re.match(r"^([01]\d|2[0-3]):([0-5]\d)$", time_of_day):
+        raise ValidationError(
+            f"Invalid time_of_day '{time_of_day}'. Must be HH:MM format (24-hour)"
+        )
+
+    # Validate frequency-specific parameters
+    if frequency == "weekly" and day_of_week is None:
+        raise ValidationError("day_of_week required for weekly frequency (0=Monday, 6=Sunday)")
+    if frequency == "monthly" and day_of_month is None:
+        raise ValidationError("day_of_month required for monthly frequency (1-31)")
+
+    # Validate day_of_week
+    if day_of_week is not None and not (0 <= day_of_week <= 6):
+        raise ValidationError("day_of_week must be 0-6 (0=Monday, 6=Sunday)")
+
+    # Validate day_of_month
+    if day_of_month is not None and not (1 <= day_of_month <= 31):
+        raise ValidationError("day_of_month must be 1-31")
+
+    # Validate retention
+    if not (1 <= retention_days <= 365):
+        raise ValidationError("retention_days must be 1-365")
+    if not (1 <= max_backups <= 100):
+        raise ValidationError("max_backups must be 1-100")
+
+    parameters = {
+        "site_id": site_id,
+        "backup_type": backup_type,
+        "frequency": frequency,
+        "time_of_day": time_of_day,
+        "enabled": enabled,
+        "retention_days": retention_days,
+        "max_backups": max_backups,
+        "day_of_week": day_of_week,
+        "day_of_month": day_of_month,
+        "cloud_backup_enabled": cloud_backup_enabled,
+    }
+
+    if dry_run:
+        logger.info(
+            f"DRY RUN: Would configure {frequency} {backup_type} backups at {time_of_day} for site '{site_id}'"
+        )
+        log_audit(
+            operation="schedule_backups",
+            parameters=parameters,
+            result="dry_run",
+            site_id=site_id,
+            dry_run=True,
+        )
+        return {
+            "dry_run": True,
+            "would_configure": parameters,
+            "next_run": "Calculated after configuration",
+        }
+
+    try:
+        async with UniFiClient(settings) as client:
+            await client.authenticate()
+
+            # Configure backup schedule via API
+            schedule_response = await client.configure_backup_schedule(
+                site_id=site_id,
+                backup_type=backup_type,
+                frequency=frequency,
+                time_of_day=time_of_day,
+                enabled=enabled,
+                retention_days=retention_days,
+                max_backups=max_backups,
+                day_of_week=day_of_week,
+                day_of_month=day_of_month,
+                cloud_backup_enabled=cloud_backup_enabled,
+            )
+
+            # Generate schedule ID
+            schedule_id = schedule_response.get(
+                "schedule_id", f"schedule_{frequency}_{backup_type}_{site_id}"
+            )
+
+            result = {
+                "schedule_id": schedule_id,
+                "site_id": site_id,
+                "enabled": enabled,
+                "backup_type": backup_type,
+                "frequency": frequency,
+                "time_of_day": time_of_day,
+                "day_of_week": day_of_week,
+                "day_of_month": day_of_month,
+                "retention_days": retention_days,
+                "max_backups": max_backups,
+                "cloud_backup_enabled": cloud_backup_enabled,
+                "configured_at": datetime.now().isoformat(),
+                "next_run": schedule_response.get("next_run", None),
+            }
+
+            logger.info(
+                f"Configured {frequency} {backup_type} backup schedule for site '{site_id}' at {time_of_day}"
+            )
+            log_audit(
+                operation="schedule_backups",
+                parameters=parameters,
+                result="success",
+                site_id=site_id,
+            )
+
+            return result
+
+    except AttributeError:
+        # Fallback if API doesn't support scheduling
+        logger.warning("Backup scheduling API not available on this controller version.")
+        raise ValidationError(
+            "Backup scheduling not supported by this controller. "
+            "Consider using external cron jobs to call trigger_backup."
+        ) from None
+    except Exception as e:
+        logger.error(f"Failed to configure backup schedule for site '{site_id}': {e}")
+        log_audit(
+            operation="schedule_backups",
+            parameters=parameters,
+            result="error",
+            error=str(e),
+            site_id=site_id,
+        )
+        raise
+
+
+async def get_backup_schedule(
+    site_id: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Get the configured automated backup schedule for a site.
+
+    Retrieve details about the current backup schedule including frequency,
+    retention policy, and next scheduled execution.
+
+    Args:
+        site_id: Site identifier
+        settings: Application settings
+
+    Returns:
+        Backup schedule configuration, or None if no schedule is configured
+
+    Example:
+        ```python
+        schedule = await get_backup_schedule(
+            site_id="default",
+            settings=settings
+        )
+
+        if schedule and schedule['enabled']:
+            print(f"Backups run {schedule['frequency']} at {schedule['time_of_day']}")
+            print(f"Next backup: {schedule['next_run']}")
+            print(f"Retention: {schedule['retention_days']} days, max {schedule['max_backups']} backups")
+        else:
+            print("No automated backup schedule configured")
+        ```
+    """
+    site_id = validate_site_id(site_id)
+    logger = get_logger(__name__, settings.log_level)
+
+    try:
+        async with UniFiClient(settings) as client:
+            await client.authenticate()
+
+            # Retrieve backup schedule configuration
+            schedule_data = await client.get_backup_schedule(site_id=site_id)
+
+            if not schedule_data:
+                logger.info(f"No backup schedule configured for site '{site_id}'")
+                return {
+                    "configured": False,
+                    "message": "No automated backup schedule configured for this site",
+                }
+
+            result = {
+                "configured": True,
+                "schedule_id": schedule_data.get("schedule_id", ""),
+                "enabled": schedule_data.get("enabled", False),
+                "backup_type": schedule_data.get("backup_type", ""),
+                "frequency": schedule_data.get("frequency", ""),
+                "time_of_day": schedule_data.get("time_of_day", ""),
+                "day_of_week": schedule_data.get("day_of_week", None),
+                "day_of_month": schedule_data.get("day_of_month", None),
+                "retention_days": schedule_data.get("retention_days", 30),
+                "max_backups": schedule_data.get("max_backups", 10),
+                "cloud_backup_enabled": schedule_data.get("cloud_backup_enabled", False),
+                "last_run": schedule_data.get("last_run", None),
+                "last_backup_id": schedule_data.get("last_backup_id", None),
+                "next_run": schedule_data.get("next_run", None),
+            }
+
+            logger.info(
+                f"Retrieved backup schedule for site '{site_id}': "
+                f"{result['frequency']} {result['backup_type']} at {result['time_of_day']}"
+            )
+            return result
+
+    except AttributeError:
+        # Fallback if API doesn't support scheduling
+        logger.warning("Backup scheduling API not available on this controller version.")
+        return {
+            "configured": False,
+            "message": "Backup scheduling not supported by this controller version",
+            "recommendation": "Use external cron jobs to schedule trigger_backup calls",
+        }
+    except Exception as e:
+        logger.error(f"Failed to get backup schedule for site '{site_id}': {e}")
+        raise

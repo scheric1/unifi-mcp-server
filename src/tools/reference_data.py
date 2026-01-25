@@ -4,7 +4,6 @@ from typing import Any
 
 from ..api import UniFiClient
 from ..config import Settings
-from ..models.radius import RADIUSProfile
 from ..models.reference_data import Country, DeviceTag
 from ..utils import get_logger, validate_limit_offset, validate_site_id
 
@@ -40,7 +39,7 @@ async def list_radius_profiles(
         paginated = profiles_data[offset : offset + limit]
 
         logger.info(f"Retrieved {len(paginated)} RADIUS profiles for site '{site_id}'")
-        return [RADIUSProfile(**profile).model_dump() for profile in paginated]
+        return paginated
 
 
 async def list_device_tags(

@@ -2052,6 +2052,223 @@ result = await mcp.call_tool("filter_traffic_flows", {
 - **Troubleshooting**: Connection state analysis and client profiling
 - **Analytics**: Application usage patterns and network insights
 
+---
+
+### Network Topology (v0.2.0)
+
+Retrieve and visualize your complete network topology including devices, clients, and their interconnections.
+
+**Available Tools:**
+- `get_network_topology`: Retrieve complete topology graph
+- `get_device_connections`: Device interconnection details
+- `get_port_mappings`: Port-level connection mapping
+- `export_topology`: Export topology in multiple formats
+- `get_topology_statistics`: Topology summary statistics
+
+#### Get Network Topology
+
+Retrieve the complete network topology including all devices, clients, and their interconnections.
+
+**Example:**
+
+```python
+# Get complete topology
+topology = await mcp.call_tool("get_network_topology", {
+    "site_id": "default",
+    "include_coordinates": True
+})
+```
+
+**Response:**
+
+```json
+{
+  "site_id": "default",
+  "site_name": "Default",
+  "generated_at": "2025-01-24T12:00:00Z",
+  "nodes": [
+    {
+      "node_id": "gateway_001",
+      "node_type": "device",
+      "name": "UDM Pro",
+      "mac": "aa:bb:cc:dd:ee:01",
+      "ip": "192.168.1.1",
+      "model": "UDM-Pro",
+      "type_detail": "ugw",
+      "uplink_depth": 0,
+      "state": 1,
+      "adopted": true
+    },
+    {
+      "node_id": "switch_001",
+      "node_type": "device",
+      "name": "USW-24-POE",
+      "uplink_device_id": "gateway_001",
+      "uplink_port": 1,
+      "uplink_depth": 1
+    }
+  ],
+  "connections": [
+    {
+      "connection_id": "conn_switch_001_uplink",
+      "source_node_id": "switch_001",
+      "target_node_id": "gateway_001",
+      "connection_type": "uplink",
+      "source_port": 1,
+      "speed_mbps": 10000,
+      "is_uplink": true,
+      "status": "up"
+    }
+  ],
+  "total_devices": 3,
+  "total_clients": 12,
+  "total_connections": 15,
+  "max_depth": 3,
+  "has_coordinates": true
+}
+```
+
+#### Get Device Connections
+
+Retrieve connection details for a specific device or all devices.
+
+**Example:**
+
+```python
+# Get connections for specific device
+connections = await mcp.call_tool("get_device_connections", {
+    "site_id": "default",
+    "device_id": "switch_001"
+})
+
+# Get all device connections
+all_connections = await mcp.call_tool("get_device_connections", {
+    "site_id": "default",
+    "device_id": None
+})
+```
+
+#### Get Port Mappings
+
+Get detailed port-level connection mapping for a device.
+
+**Example:**
+
+```python
+port_map = await mcp.call_tool("get_port_mappings", {
+    "site_id": "default",
+    "device_id": "switch_001"
+})
+```
+
+**Response:**
+
+```json
+{
+  "device_id": "switch_001",
+  "ports": {
+    "1": {
+      "connected_to": "gateway_001",
+      "connection_type": "uplink",
+      "speed_mbps": 10000,
+      "status": "up"
+    },
+    "5": {
+      "connected_to": "ap_001",
+      "connection_type": "wired",
+      "speed_mbps": 1000,
+      "status": "up"
+    },
+    "10": {
+      "connected_to": "client_002",
+      "connection_type": "wired",
+      "speed_mbps": 1000,
+      "status": "up"
+    }
+  }
+}
+```
+
+#### Export Topology
+
+Export network topology in multiple formats for visualization or documentation.
+
+**Supported Formats:**
+- `json`: JSON format for programmatic use
+- `graphml`: GraphML (XML) format for network visualization tools (Gephi, yEd, etc.)
+- `dot`: DOT format for Graphviz rendering
+
+**Example:**
+
+```python
+# Export as JSON
+json_topology = await mcp.call_tool("export_topology", {
+    "site_id": "default",
+    "format": "json"
+})
+
+# Export as GraphML for visualization
+graphml_topology = await mcp.call_tool("export_topology", {
+    "site_id": "default",
+    "format": "graphml"
+})
+
+# Export as DOT for Graphviz
+dot_topology = await mcp.call_tool("export_topology", {
+    "site_id": "default",
+    "format": "dot"
+})
+```
+
+**Example DOT Output:**
+
+```dot
+digraph UniFiNetwork {
+  node [shape=box];
+  "gateway_001" [label="UDM Pro\n(device)"];
+  "switch_001" [label="USW-24-POE\n(device)"];
+  "ap_001" [label="AP Office\n(device)"];
+  "switch_001" -> "gateway_001" [label="uplink"];
+  "ap_001" -> "switch_001" [label="wired"];
+}
+```
+
+#### Get Topology Statistics
+
+Get summary statistics about your network topology.
+
+**Example:**
+
+```python
+stats = await mcp.call_tool("get_topology_statistics", {
+    "site_id": "default"
+})
+```
+
+**Response:**
+
+```json
+{
+  "site_id": "default",
+  "total_devices": 3,
+  "total_clients": 12,
+  "total_connections": 15,
+  "max_depth": 3,
+  "generated_at": "2025-01-24T12:00:00Z"
+}
+```
+
+**Use Cases:**
+
+- **Network Documentation**: Auto-generate network diagrams
+- **Visualization**: Export to Graphviz, yEd, or Gephi for interactive visualization
+- **Capacity Planning**: Understand network depth and connection patterns
+- **Troubleshooting**: Identify connection issues and network bottlenecks
+- **Monitoring**: Track topology changes over time
+- **Compliance**: Document network architecture for audits
+
+---
+
 ### Caching (Optional)
 
 The MCP server includes optional Redis-based caching to reduce API calls and improve performance.
