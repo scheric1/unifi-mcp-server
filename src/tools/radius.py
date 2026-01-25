@@ -128,10 +128,20 @@ async def create_radius_profile(
             payload["acct_secret"] = acct_secret
 
         if dry_run:
-            # Redact secrets in dry run output
-            payload_safe = payload.copy()
-            payload_safe["auth_secret"] = "***REDACTED***"
-            if "acct_secret" in payload_safe:
+            # Build safe payload without secrets for logging
+            payload_safe = {
+                "name": name,
+                "auth_server": auth_server,
+                "auth_port": auth_port,
+                "auth_secret": "***REDACTED***",
+                "acct_port": acct_port,
+                "use_same_secret": use_same_secret,
+                "vlan_enabled": vlan_enabled,
+                "enabled": True,
+            }
+            if acct_server:
+                payload_safe["acct_server"] = acct_server
+            if acct_secret:
                 payload_safe["acct_secret"] = "***REDACTED***"
             logger.info(f"[DRY RUN] Would create RADIUS profile with payload: {payload_safe}")
             return {"dry_run": True, "payload": payload_safe}
@@ -222,12 +232,26 @@ async def update_radius_profile(
             payload["enabled"] = enabled
 
         if dry_run:
-            # Redact secrets in dry run output
-            payload_safe = payload.copy()
-            if "auth_secret" in payload_safe:
+            # Build safe payload without secrets for logging
+            payload_safe = {}
+            if name is not None:
+                payload_safe["name"] = name
+            if auth_server is not None:
+                payload_safe["auth_server"] = auth_server
+            if auth_secret is not None:
                 payload_safe["auth_secret"] = "***REDACTED***"
-            if "acct_secret" in payload_safe:
+            if auth_port is not None:
+                payload_safe["auth_port"] = auth_port
+            if acct_server is not None:
+                payload_safe["acct_server"] = acct_server
+            if acct_port is not None:
+                payload_safe["acct_port"] = acct_port
+            if acct_secret is not None:
                 payload_safe["acct_secret"] = "***REDACTED***"
+            if vlan_enabled is not None:
+                payload_safe["vlan_enabled"] = vlan_enabled
+            if enabled is not None:
+                payload_safe["enabled"] = enabled
             logger.info(f"[DRY RUN] Would update RADIUS profile with payload: {payload_safe}")
             return {"dry_run": True, "profile_id": profile_id, "payload": payload_safe}
 
@@ -542,9 +566,24 @@ async def configure_guest_portal(
             payload["terms_of_service_text"] = terms_of_service_text
 
         if dry_run:
-            payload_safe = payload.copy()
-            if "password" in payload_safe:
+            # Build safe payload without secrets for logging
+            payload_safe = {}
+            if portal_title is not None:
+                payload_safe["portal_title"] = portal_title
+            if auth_method is not None:
+                payload_safe["auth_method"] = auth_method
+            if password is not None:
                 payload_safe["password"] = "***REDACTED***"
+            if session_timeout is not None:
+                payload_safe["session_timeout"] = session_timeout
+            if redirect_enabled is not None:
+                payload_safe["redirect_enabled"] = redirect_enabled
+            if redirect_url is not None:
+                payload_safe["redirect_url"] = redirect_url
+            if terms_of_service_enabled is not None:
+                payload_safe["terms_of_service_enabled"] = terms_of_service_enabled
+            if terms_of_service_text is not None:
+                payload_safe["terms_of_service_text"] = terms_of_service_text
             logger.info(f"[DRY RUN] Would configure guest portal with payload: {payload_safe}")
             return {"dry_run": True, "payload": payload_safe}
 
