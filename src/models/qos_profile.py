@@ -66,6 +66,22 @@ class QoSAction(str, Enum):
     SHAPE = "shape"  # Shape traffic to rate
 
 
+class RouteAction(str, Enum):
+    """Traffic route action types."""
+
+    ALLOW = "allow"  # Allow traffic
+    DENY = "deny"  # Deny traffic
+    MARK = "mark"  # Mark with DSCP
+    SHAPE = "shape"  # Shape to rate
+
+
+class QueueAlgorithm(str, Enum):
+    """Smart queue management algorithms."""
+
+    FQ_CODEL = "fq_codel"  # Fair Queueing with Controlled Delay
+    CAKE = "cake"  # Common Applications Kept Enhanced
+
+
 class ProAVProtocol(str, Enum):
     """Professional Audio/Video protocols."""
 
@@ -164,6 +180,102 @@ class ProAVTemplate(BaseModel):
     class Config:
         """Pydantic configuration."""
 
+        use_enum_values = True
+
+
+class MatchCriteria(BaseModel):
+    """Traffic matching criteria for routing policies."""
+
+    source_ip: str | None = Field(None, description="Source IP address or CIDR")
+    destination_ip: str | None = Field(None, description="Destination IP address or CIDR")
+    source_port: int | None = Field(None, ge=1, le=65535, description="Source port")
+    destination_port: int | None = Field(None, ge=1, le=65535, description="Destination port")
+    protocol: str | None = Field(None, description="Protocol (tcp, udp, icmp, all)")
+    vlan_id: int | None = Field(None, ge=1, le=4094, description="VLAN ID")
+
+    class Config:
+        """Pydantic configuration."""
+
+        use_enum_values = True
+
+
+class RouteSchedule(BaseModel):
+    """Time-based routing schedule."""
+
+    enabled: bool = Field(False, description="Enable time-based schedule")
+    days: list[str] = Field(
+        default_factory=list, description="Days active (mon, tue, wed, thu, fri, sat, sun)"
+    )
+    start_time: str | None = Field(None, description="Start time (HH:MM format)")
+    end_time: str | None = Field(None, description="End time (HH:MM format)")
+
+    class Config:
+        """Pydantic configuration."""
+
+        use_enum_values = True
+
+
+class TrafficRoute(BaseModel):
+    """Policy-based traffic routing configuration."""
+
+    id: str = Field(alias="_id", description="Route ID")
+    name: str = Field(..., description="Route name")
+    description: str | None = Field(None, description="Route description")
+    action: RouteAction = Field(..., description="Route action")
+    enabled: bool = Field(True, description="Route enabled")
+
+    # Traffic matching
+    match_criteria: MatchCriteria = Field(..., description="Traffic matching criteria")
+
+    # QoS settings
+    dscp_marking: int | None = Field(None, ge=0, le=63, description="DSCP value to mark")
+    bandwidth_limit_kbps: int | None = Field(None, ge=0, description="Bandwidth limit in kbps")
+
+    # Scheduling
+    schedule: RouteSchedule | None = Field(None, description="Time-based schedule")
+
+    # Priority
+    priority: int = Field(default=100, ge=1, le=1000, description="Route priority (lower = higher priority)")
+
+    # State
+    site_id: str | None = Field(None, description="Site ID")
+
+    class Config:
+        """Pydantic configuration."""
+
+        populate_by_name = True
+        use_enum_values = True
+
+
+class SmartQueueConfig(BaseModel):
+    """Smart Queue Management (SQM) configuration for bufferbloat mitigation."""
+
+    id: str = Field(alias="_id", description="Config ID")
+    enabled: bool = Field(False, description="Enable SQM")
+    wan_id: str = Field(..., description="WAN interface ID")
+
+    # Queue algorithm
+    algorithm: QueueAlgorithm = Field(default=QueueAlgorithm.FQ_CODEL, description="Queue algorithm")
+
+    # Bandwidth limits
+    download_kbps: int = Field(..., ge=0, description="Download bandwidth in kbps")
+    upload_kbps: int = Field(..., ge=0, description="Upload bandwidth in kbps")
+
+    # Advanced settings
+    overhead_bytes: int = Field(default=44, ge=0, le=256, description="Per-packet overhead in bytes")
+    target_delay_ms: int = Field(default=5, ge=1, le=100, description="Target queueing delay in ms")
+
+    # Bufferbloat test metadata
+    last_test_date: str | None = Field(None, description="Last bufferbloat test date (ISO 8601)")
+    last_test_grade: str | None = Field(None, description="Last bufferbloat test grade (A-F)")
+
+    # State
+    site_id: str | None = Field(None, description="Site ID")
+
+    class Config:
+        """Pydantic configuration."""
+
+        populate_by_name = True
         use_enum_values = True
 
 
@@ -271,5 +383,70 @@ PROAV_TEMPLATES: dict[str, dict[str, Any]] = {
         "ptp_domain": 127,
         "min_bandwidth_mbps": 3000,  # 4K uncompressed
         "max_latency_ms": 1,
+    },
+}
+
+
+# Reference QoS profiles for common use cases
+REFERENCE_PROFILES: dict[str, dict[str, Any]] = {
+    "voice-first": {
+        "name": "Voice First",
+        "description": "VoIP optimized profile with minimal latency (<10ms)",
+        "priority_level": 5,  # Voice priority
+        "dscp_marking": 46,  # EF (Expedited Forwarding)
+        "ports": [5060, 5061, 5004, 5005],  # SIP, RTP, RTCP
+        "protocols": ["udp", "tcp"],
+        "bandwidth_guaranteed_down_kbps": 128,  # G.711 codec minimum
+        "bandwidth_guaranteed_up_kbps": 128,
+    },
+    "video-conferencing": {
+        "name": "Video Conferencing",
+        "description": "HD video conferencing optimized (<100ms latency)",
+        "priority_level": 4,  # Video priority
+        "dscp_marking": 34,  # AF41
+        "ports": [3478, 3479, 8801, 8802],  # STUN, TURN, WebRTC
+        "protocols": ["udp", "tcp"],
+        "bandwidth_guaranteed_down_kbps": 2500,  # 1080p @ 30fps
+        "bandwidth_guaranteed_up_kbps": 2500,
+    },
+    "cloud-gaming": {
+        "name": "Cloud Gaming",
+        "description": "Low-latency gaming with consistent performance",
+        "priority_level": 4,  # Video/interactive priority
+        "dscp_marking": 34,  # AF41
+        "ports": [],  # Application-specific
+        "protocols": ["udp"],
+        "bandwidth_guaranteed_down_kbps": 15000,  # 4K streaming
+        "bandwidth_guaranteed_up_kbps": 5000,  # Controller input
+    },
+    "streaming-media": {
+        "name": "Streaming Media",
+        "description": "Netflix, YouTube, Plex streaming optimization",
+        "priority_level": 3,  # Critical applications
+        "dscp_marking": 26,  # AF31
+        "ports": [443, 80, 32400],  # HTTPS, HTTP, Plex
+        "protocols": ["tcp"],
+        "bandwidth_guaranteed_down_kbps": 25000,  # 4K streaming
+        "bandwidth_guaranteed_up_kbps": 5000,  # Upload for transcoding
+    },
+    "bulk-backup": {
+        "name": "Bulk Backup",
+        "description": "Rate-limited background transfers (Scavenger class)",
+        "priority_level": 1,  # Background/scavenger
+        "dscp_marking": 8,  # CS1
+        "ports": [22, 873, 3260],  # SSH, rsync, iSCSI
+        "protocols": ["tcp"],
+        "bandwidth_limit_down_kbps": 50000,  # Limit to prevent congestion
+        "bandwidth_limit_up_kbps": 50000,
+    },
+    "guest-best-effort": {
+        "name": "Guest Best Effort",
+        "description": "Minimal guarantees for guest networks",
+        "priority_level": 0,  # Background/default
+        "dscp_marking": 0,  # CS0/Best Effort
+        "ports": [],  # All traffic
+        "protocols": ["tcp", "udp"],
+        "bandwidth_limit_down_kbps": 10000,  # 10 Mbps max
+        "bandwidth_limit_up_kbps": 5000,  # 5 Mbps max
     },
 }

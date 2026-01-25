@@ -20,6 +20,7 @@ from .tools import dpi as dpi_tools
 from .tools import dpi_tools as dpi_new_tools
 from .tools import firewall as firewall_tools
 from .tools import firewall_zones as firewall_zones_tools
+from .tools import qos as qos_tools
 from .tools import network_config as network_config_tools
 from .tools import networks as networks_tools
 from .tools import port_forwarding as port_fwd_tools
@@ -997,6 +998,278 @@ async def update_firewall_zone(
     return await firewall_zones_tools.update_firewall_zone(
         site_id, firewall_zone_id, settings, name, description, network_ids, confirm, dry_run
     )
+
+
+# QoS Profile Management Tools
+@mcp.tool()
+async def list_qos_profiles(
+    site_id: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """List all QoS profiles for traffic prioritization and shaping."""
+    return await qos_tools.list_qos_profiles(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def get_qos_profile(site_id: str, profile_id: str) -> dict:
+    """Get details for a specific QoS profile."""
+    return await qos_tools.get_qos_profile(site_id, profile_id, settings)
+
+
+@mcp.tool()
+async def create_qos_profile(
+    site_id: str,
+    name: str,
+    priority_level: int,
+    description: str | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_down_kbps: int | None = None,
+    bandwidth_limit_up_kbps: int | None = None,
+    bandwidth_guaranteed_down_kbps: int | None = None,
+    bandwidth_guaranteed_up_kbps: int | None = None,
+    ports: list[int] | None = None,
+    protocols: list[str] | None = None,
+    applications: list[str] | None = None,
+    categories: list[str] | None = None,
+    schedule_enabled: bool = False,
+    schedule_days: list[str] | None = None,
+    schedule_time_start: str | None = None,
+    schedule_time_end: str | None = None,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new QoS profile with comprehensive traffic shaping (requires confirm=True)."""
+    return await qos_tools.create_qos_profile(
+        site_id,
+        name,
+        priority_level,
+        settings,
+        description,
+        dscp_marking,
+        bandwidth_limit_down_kbps,
+        bandwidth_limit_up_kbps,
+        bandwidth_guaranteed_down_kbps,
+        bandwidth_guaranteed_up_kbps,
+        ports,
+        protocols,
+        applications,
+        categories,
+        schedule_enabled,
+        schedule_days,
+        schedule_time_start,
+        schedule_time_end,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def update_qos_profile(
+    site_id: str,
+    profile_id: str,
+    name: str | None = None,
+    priority_level: int | None = None,
+    description: str | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_down_kbps: int | None = None,
+    bandwidth_limit_up_kbps: int | None = None,
+    bandwidth_guaranteed_down_kbps: int | None = None,
+    bandwidth_guaranteed_up_kbps: int | None = None,
+    enabled: bool | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Update an existing QoS profile (requires confirm=True)."""
+    return await qos_tools.update_qos_profile(
+        site_id,
+        profile_id,
+        settings,
+        name,
+        priority_level,
+        description,
+        dscp_marking,
+        bandwidth_limit_down_kbps,
+        bandwidth_limit_up_kbps,
+        bandwidth_guaranteed_down_kbps,
+        bandwidth_guaranteed_up_kbps,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_qos_profile(site_id: str, profile_id: str, confirm: bool = False) -> dict:
+    """Delete a QoS profile (requires confirm=True)."""
+    return await qos_tools.delete_qos_profile(site_id, profile_id, settings, confirm)
+
+
+# ProAV Profile Management Tools
+@mcp.tool()
+async def list_proav_templates() -> list[dict]:
+    """List available ProAV protocol templates (Dante, Q-SYS, SDVoE, AVB, RAVENNA, NDI, SMPTE 2110) and reference profiles."""
+    return await qos_tools.list_proav_templates(settings)
+
+
+@mcp.tool()
+async def create_proav_profile(
+    site_id: str,
+    protocol: str,
+    name: str | None = None,
+    customize_ports: list[int] | None = None,
+    customize_bandwidth_down_kbps: int | None = None,
+    customize_bandwidth_up_kbps: int | None = None,
+    customize_dscp: int | None = None,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a QoS profile from a ProAV or reference template (requires confirm=True)."""
+    return await qos_tools.create_proav_profile(
+        site_id,
+        protocol,
+        settings,
+        name,
+        customize_ports,
+        customize_bandwidth_down_kbps,
+        customize_bandwidth_up_kbps,
+        customize_dscp,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def validate_proav_profile(protocol: str, bandwidth_mbps: int | None = None) -> dict:
+    """Validate ProAV profile requirements and provide recommendations."""
+    return await qos_tools.validate_proav_profile(protocol, settings, bandwidth_mbps)
+
+
+# Smart Queue Management Tools
+@mcp.tool()
+async def get_smart_queue_config(site_id: str) -> dict:
+    """Get Smart Queue Management (SQM) configuration for bufferbloat mitigation."""
+    return await qos_tools.get_smart_queue_config(site_id, settings)
+
+
+@mcp.tool()
+async def configure_smart_queue(
+    site_id: str,
+    wan_id: str,
+    download_kbps: int,
+    upload_kbps: int,
+    algorithm: str = "fq_codel",
+    overhead_bytes: int = 44,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Configure Smart Queue Management (SQM) for bufferbloat mitigation (requires confirm=True)."""
+    return await qos_tools.configure_smart_queue(
+        site_id,
+        wan_id,
+        download_kbps,
+        upload_kbps,
+        settings,
+        algorithm,
+        overhead_bytes,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def disable_smart_queue(site_id: str, wan_id: str, confirm: bool = False) -> dict:
+    """Disable Smart Queue Management (SQM) (requires confirm=True)."""
+    return await qos_tools.disable_smart_queue(site_id, wan_id, settings, confirm)
+
+
+# Traffic Route Management Tools
+@mcp.tool()
+async def list_traffic_routes(
+    site_id: str,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """List all policy-based traffic routing rules."""
+    return await qos_tools.list_traffic_routes(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def create_traffic_route(
+    site_id: str,
+    name: str,
+    action: str,
+    description: str | None = None,
+    source_ip: str | None = None,
+    destination_ip: str | None = None,
+    source_port: int | None = None,
+    destination_port: int | None = None,
+    protocol: str | None = None,
+    vlan_id: int | None = None,
+    dscp_marking: int | None = None,
+    bandwidth_limit_kbps: int | None = None,
+    priority: int = 100,
+    enabled: bool = True,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Create a new policy-based traffic routing rule (requires confirm=True)."""
+    return await qos_tools.create_traffic_route(
+        site_id,
+        name,
+        action,
+        settings,
+        description,
+        source_ip,
+        destination_ip,
+        source_port,
+        destination_port,
+        protocol,
+        vlan_id,
+        dscp_marking,
+        bandwidth_limit_kbps,
+        priority,
+        enabled,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def update_traffic_route(
+    site_id: str,
+    route_id: str,
+    name: str | None = None,
+    action: str | None = None,
+    description: str | None = None,
+    enabled: bool | None = None,
+    priority: int | None = None,
+    confirm: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Update an existing traffic routing rule (requires confirm=True)."""
+    return await qos_tools.update_traffic_route(
+        site_id,
+        route_id,
+        settings,
+        name,
+        action,
+        description,
+        enabled,
+        priority,
+        confirm,
+        dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_traffic_route(site_id: str, route_id: str, confirm: bool = False) -> dict:
+    """Delete a traffic routing rule (requires confirm=True)."""
+    return await qos_tools.delete_traffic_route(site_id, route_id, settings, confirm)
 
 
 # ACL Tools
