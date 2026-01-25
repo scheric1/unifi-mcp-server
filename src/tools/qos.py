@@ -4,12 +4,7 @@ from typing import Any
 
 from ..api.client import UniFiClient
 from ..config import Settings
-from ..models.qos_profile import (
-    PROAV_TEMPLATES,
-    REFERENCE_PROFILES,
-    QoSProfile,
-    TrafficRoute,
-)
+from ..models.qos_profile import PROAV_TEMPLATES, REFERENCE_PROFILES, QoSProfile, TrafficRoute
 from ..utils import ValidationError, audit_action, get_logger, validate_confirmation
 
 logger = get_logger(__name__)
