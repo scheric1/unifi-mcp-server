@@ -40,12 +40,16 @@ from dotenv import load_dotenv
 from tests.integration.test_harness import TestEnvironment, TestHarness
 
 # Import all test suites
+from tests.integration.test_cloud_suite import create_cloud_suite
 from tests.integration.test_topology_suite import create_topology_suite
 
 
 def discover_test_suites():
     """Discover and return all test suites."""
     suites = []
+
+    # Register cloud API suite (basic operations)
+    suites.append(create_cloud_suite())
 
     # Register topology suite
     suites.append(create_topology_suite())
