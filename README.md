@@ -11,14 +11,26 @@ A Model Context Protocol (MCP) server that exposes the UniFi Network Controller 
 
 ## 📋 Version Notice
 
-**Current Stable Release**: v0.2.0 (2026-01-25) 🎉
+**Current Stable Release**: v0.2.1 (2026-01-26) 🎉
 
 **Installation:**
+
 ```bash
 pip install unifi-mcp-server
 ```
 
-**What's New in v0.2.0:**
+**What's New in v0.2.1:**
+
+- 🔧 **CI/CD Improvements** - Fixed all CI/CD pipeline failures
+- ✅ **Test Infrastructure** - Proper pytest configuration with integration markers
+- 🧪 **990 Tests Passing** - All unit tests passing across Python 3.10, 3.11, 3.12
+- 🔍 **Integration Tests** - 24 integration tests validated on local APIs
+- 📋 **Code Quality** - Black formatting, Ruff linting, pre-commit hooks all passing
+
+This is a maintenance release focused on improving the development and testing infrastructure. All 74 MCP tools from v0.2.0 remain unchanged.
+
+**Previous Major Release - v0.2.0 (2026-01-25):**
+
 - ✨ **74 MCP Tools** - All 7 feature phases complete
 - 📦 **Published on PyPI** - Easy installation with pip/uv
 - 📊 **QoS Management** - Traffic prioritization and bandwidth control (11 tools)
@@ -28,7 +40,7 @@ pip install unifi-mcp-server
 - 🏢 **Site Management** - Multi-site provisioning and VPN (9 tools)
 - 🔐 **RADIUS & Guest Portal** - 802.1X authentication (6 tools)
 - 🗺️ **Network Topology** - Complete topology mapping and visualization (5 tools)
-- 🧪 **990 Tests Passing** - 78.18% coverage with comprehensive validation
+- 🧪 **990 Tests** - 78.18% coverage with comprehensive validation
 - 📖 **30+ Example Prompts** - AI assistant usage examples
 
 See [CHANGELOG.md](CHANGELOG.md) for complete release notes and [VERIFICATION_REPORT.md](VERIFICATION_REPORT.md) for detailed verification.
@@ -38,6 +50,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete release notes and [VERIFICATION_RE
 The UniFi MCP Server supports **three distinct API modes** with different capabilities:
 
 ### Local Gateway API (Recommended) ✅
+
 **Full feature support** - Direct access to your UniFi gateway.
 
 - ✅ **All Features Available**: Device management, client control, network configuration, firewall rules, WiFi management
@@ -47,6 +60,7 @@ The UniFi MCP Server supports **three distinct API modes** with different capabi
 - ⚙️ **Configuration**: `UNIFI_API_TYPE=local` + `UNIFI_LOCAL_HOST=<gateway-ip>`
 
 ### Cloud Early Access API ⚠️
+
 **Limited to aggregate statistics** - UniFi cloud API in testing phase.
 
 - ✅ **Site Information**: List sites with aggregate statistics (device counts, client counts, bandwidth)
@@ -56,6 +70,7 @@ The UniFi MCP Server supports **three distinct API modes** with different capabi
 - 📊 **Rate Limit**: 100 requests/minute
 
 ### Cloud V1 API ⚠️
+
 **Limited to aggregate statistics** - UniFi stable v1 cloud API.
 
 - ✅ **Site Information**: List sites with aggregate statistics (device counts, client counts, bandwidth)
@@ -177,7 +192,7 @@ pip install unifi-mcp-server==0.2.0
 
 After installation, the `unifi-mcp-server` command will be available globally.
 
-**PyPI Package**: https://pypi.org/project/unifi-mcp-server/
+**PyPI Package**: <https://pypi.org/project/unifi-mcp-server/>
 
 #### Using Docker (Alternative)
 
@@ -312,6 +327,7 @@ cd unifi-mcp-server
 #### 2. Set Up Development Environment
 
 **Using uv (Recommended):**
+
 ```bash
 # Install uv if not already installed
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -332,6 +348,7 @@ pre-commit install --hook-type commit-msg
 ```
 
 **Using pip:**
+
 ```bash
 # Create virtual environment
 python -m venv .venv
@@ -695,6 +712,7 @@ After installing via `pip install unifi-mcp-server`:
 ```
 
 **Configuration Notes:**
+
 - Replace `UNIFI_API_KEY` with your actual UniFi API key
 - For local gateway access, set `UNIFI_API_TYPE=local` and provide `UNIFI_LOCAL_HOST`
 - For cloud API access, use `UNIFI_API_TYPE=cloud-v1` or `cloud-ea`
@@ -761,6 +779,7 @@ After installing from PyPI (`pip install unifi-mcp-server`):
 ```
 
 **Environment Variables (All Clients):**
+
 - `UNIFI_API_KEY` (required): Your UniFi API key from unifi.ui.com
 - `UNIFI_API_TYPE` (required): `local`, `cloud-v1`, or `cloud-ea`
 - **For Local Gateway API**:
@@ -768,7 +787,7 @@ After installing from PyPI (`pip install unifi-mcp-server`):
   - `UNIFI_LOCAL_PORT`: Gateway port (default: 443)
   - `UNIFI_LOCAL_VERIFY_SSL`: SSL verification (default: false)
 - **For Cloud APIs**:
-  - `UNIFI_CLOUD_API_URL`: Cloud API URL (default: https://api.ui.com)
+  - `UNIFI_CLOUD_API_URL`: Cloud API URL (default: <https://api.ui.com>)
   - `UNIFI_DEFAULT_SITE`: Default site ID (default: default)
 
 ### Programmatic Usage
@@ -894,6 +913,7 @@ pytest -m integration
 - **Branch Coverage**: 75.03%
 
 **By Module Category:**
+
 - **Models**: 98%+ coverage (Excellent)
 - **Core Tools**: 90-100% coverage (Excellent)
 - **v0.2.0 Features**: 70-96% coverage (Good to Excellent)
@@ -905,6 +925,7 @@ pytest -m integration
 - **Utilities**: 90%+ coverage (Excellent)
 
 **Top Coverage Performers** (>95%):
+
 - clients.py: 98.72%
 - devices.py: 98.44%
 - device_control.py: 99.10%
@@ -1073,6 +1094,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Advanced analytics and reporting capabilities
 
 **ZBF Implementation Notes (Verified 2025-11-18):**
+
 - ✅ Zone CRUD operations work (local gateway API only)
 - ✅ **Zone-to-zone policies work via Firewall Policies v2 API** (local gateway API only)
 - ❌ Legacy zone matrix endpoints NOT available via API (use v2 API instead)
@@ -1081,6 +1103,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - See ZBF_STATUS.md for complete details and examples
 
 **Phase 1: QoS Enhancements (11 tools) ✅**
+
 - [x] QoS profile management (CRUD operations)
 - [x] Reference profiles and ProAV templates
 - [x] Traffic routing with time-based schedules
@@ -1088,6 +1111,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 82.43% (46 tests passing)
 
 **Phase 2: Backup & Restore (8 tools) ✅**
+
 - [x] Manual and automated backup creation
 - [x] Backup listing, download, and verification
 - [x] Backup restore functionality
@@ -1096,6 +1120,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 86.32% (10 tests passing)
 
 **Phase 3: Multi-Site Aggregation (4 tools) ✅**
+
 - [x] Cross-site device and client analytics
 - [x] Site health monitoring with scoring
 - [x] Side-by-side site comparison
@@ -1103,6 +1128,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 92.95% (10 tests passing)
 
 **Phase 4: ACL & Traffic Filtering (7 tools) ✅**
+
 - [x] Layer 3/4 access control list management
 - [x] Traffic matching lists (IP, MAC, domain, port)
 - [x] Firewall policy automation
@@ -1110,6 +1136,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 89.30-93.84%
 
 **Phase 5: Site Management Enhancements (9 tools) ✅**
+
 - [x] Multi-site provisioning and configuration
 - [x] Site-to-site VPN setup
 - [x] Device migration between sites
@@ -1118,6 +1145,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 92.95% (10 tests passing)
 
 **Phase 6: RADIUS & Guest Portal (6 tools) ✅**
+
 - [x] RADIUS profile configuration (802.1X)
 - [x] RADIUS accounting server support
 - [x] Guest portal customization
@@ -1126,6 +1154,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 69.77% (17 tests passing)
 
 **Phase 7: Network Topology (5 tools) ✅**
+
 - [x] Complete topology graph retrieval
 - [x] Multi-format export (JSON, GraphML, DOT)
 - [x] Device interconnection mapping
@@ -1134,6 +1163,7 @@ Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:
 - [x] Coverage: 95.83% (29 tests passing)
 
 **Quality Achievements:**
+
 - [x] 990 tests passing (78.18% coverage)
 - [x] 18/18 CI/CD checks passing
 - [x] Zero security vulnerabilities
