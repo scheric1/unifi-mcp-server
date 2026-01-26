@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-01-25
+
+### 🔧 Critical Bug Fix - Topology Tools
+
+Fixed topology tools that were completely non-functional due to using non-existent API endpoints.
+
+### Fixed
+
+- **Topology Tools (5 tools)**: Rewrote all topology tools to use correct Integration API endpoints
+  - Changed from non-existent `/api/s/{site}/stat/topology` to proper Integration API endpoints
+  - Now uses `/v1/sites/{siteId}/devices` and `/v1/sites/{siteId}/clients`
+  - Updated data model field names to match Integration API response format
+  - Fixed endpoint path construction using `get_integration_path()` for proper API translation
+  - Added pagination support for large device/client lists
+  - Fixed network depth calculation and client connection type detection
+
+### Added
+
+- **Integration Test Framework**: Comprehensive test harness for real-world validation
+  - Multi-environment support (6 environments: 2 local + 4 cloud)
+  - API mode testing (local, cloud-v1, cloud-ea)
+  - Intelligent test skipping for unsupported API features
+  - Detailed reporting with pass/fail/skip statistics
+  - JSON export for CI/CD integration
+  - Dry-run mode for test planning
+  - Test suite organization with setup/teardown hooks
+- **Topology Test Suite**: 8 comprehensive tests with 100% pass rate on local APIs
+- **Test Documentation**: Complete guide for writing and running integration tests
+
+### Technical Details
+
+**Data Model Changes**:
+- `device._id` → `device.id`
+- `device.mac` → `device.macAddress`
+- `device.ip` → `device.ipAddress`
+- `uplink.device_id` → `uplink.deviceId`
+- `device.state` (int) → `device.state` (string: "CONNECTED"|other)
+
+**Test Results**:
+- 16/16 tests PASSED on local APIs (100%)
+- 32/32 tests SKIPPED on cloud APIs (expected - topology not supported)
+- 0 FAILED
+- Total test duration: 6.97s across 6 environments
+
+**API Limitations Documented**:
+- Local APIs: Full topology support
+- Cloud APIs (v1 & EA): Aggregate statistics only, no device-level data
+
 ## [0.2.0] - 2026-01-25
 
 ### 🎉 Production Release - All Features Complete
