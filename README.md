@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/enuno/unifi-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/enuno/unifi-mcp-server/actions/workflows/ci.yml)
 [![Security](https://github.com/enuno/unifi-mcp-server/actions/workflows/security.yml/badge.svg)](https://github.com/enuno/unifi-mcp-server/actions/workflows/security.yml)
+[![codecov](https://codecov.io/github/enuno/unifi-mcp-server/graph/badge.svg?token=ZD314B59CE)](https://codecov.io/github/enuno/unifi-mcp-server)
 [![PyPI](https://img.shields.io/pypi/v/unifi-mcp-server.svg)](https://pypi.org/project/unifi-mcp-server/)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
