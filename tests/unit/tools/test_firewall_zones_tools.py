@@ -194,7 +194,7 @@ class TestCreateFirewallZone:
                 confirm=True,
             )
 
-            assert "net-001" in result["network_ids"]
+            assert "net-001" in result["networks"]
 
 
 class TestUpdateFirewallZone:

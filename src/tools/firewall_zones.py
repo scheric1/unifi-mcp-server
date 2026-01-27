@@ -4,7 +4,6 @@ from typing import Any
 
 from ..api.client import UniFiClient
 from ..config import APIType, Settings
-from ..models import FirewallZone
 from ..models.zbf_matrix import ZoneNetworkAssignment
 from ..utils import ValidationError, audit_action, get_logger, validate_confirmation
 
@@ -44,9 +43,11 @@ async def list_firewall_zones(
         resolved_site_id = await client.resolve_site_id(site_id)
         endpoint = settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones")
         response = await client.get(endpoint)
-        data = response.get("data", [])
+        # Handle both list and dict responses
+        data = response if isinstance(response, list) else response.get("data", [])
 
-        return [FirewallZone(**zone).model_dump() for zone in data]  # type: ignore[no-any-return]
+        # Return raw data - API response may not match model exactly
+        return data  # type: ignore[no-any-return]
 
 
 async def create_firewall_zone(
@@ -83,14 +84,14 @@ async def create_firewall_zone(
             await client.authenticate()
 
         # Build request payload
+        # Note: networkIds is required by API (even if empty list)
         payload: dict[str, Any] = {
             "name": name,
+            "networkIds": network_ids if network_ids else [],
         }
 
         if description:
             payload["description"] = description
-        if network_ids:
-            payload["networks"] = network_ids
 
         if dry_run:
             logger.info(f"[DRY RUN] Would create firewall zone with payload: {payload}")
@@ -113,7 +114,8 @@ async def create_firewall_zone(
             details={"name": name},
         )
 
-        return FirewallZone(**data).model_dump()  # type: ignore[no-any-return]
+        # Return raw data - API response may not match model exactly
+        return data  # type: ignore[no-any-return]
 
 
 async def update_firewall_zone(
@@ -195,7 +197,8 @@ async def update_firewall_zone(
             details=payload,
         )
 
-        return FirewallZone(**data).model_dump()  # type: ignore[no-any-return]
+        # Return raw data - API response may not match model exactly
+        return data  # type: ignore[no-any-return]
 
 
 async def assign_network_to_zone(

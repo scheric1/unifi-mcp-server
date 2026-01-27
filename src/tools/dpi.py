@@ -41,7 +41,8 @@ async def get_dpi_statistics(
 
         # Get DPI statistics
         response = await client.get(f"/ea/sites/{site_id}/stat/dpi")
-        dpi_data = response.get("data", [])
+        # Handle both list and dict responses
+        dpi_data = response if isinstance(response, list) else response.get("data", [])
 
         # Aggregate by application/category
         app_stats = {}
@@ -176,7 +177,8 @@ async def get_client_dpi(
 
         # Get client-specific DPI data
         response = await client.get(f"/ea/sites/{site_id}/stat/stadpi/{client_mac}")
-        dpi_data = response.get("data", [])
+        # Handle both list and dict responses
+        dpi_data = response if isinstance(response, list) else response.get("data", [])
 
         # Aggregate by application
         app_stats = {}

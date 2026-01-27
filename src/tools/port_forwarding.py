@@ -42,7 +42,10 @@ async def list_port_forwards(
         await client.authenticate()
 
         response = await client.get(f"/ea/sites/{site_id}/rest/portforward")
-        rules_data: list[dict[str, Any]] = response.get("data", [])
+        # Handle both list and dict responses
+        rules_data: list[dict[str, Any]] = (
+            response if isinstance(response, list) else response.get("data", [])
+        )
 
         # Apply pagination
         paginated = rules_data[offset : offset + limit]
@@ -151,7 +154,10 @@ async def create_port_forward(
             await client.authenticate()
 
             response = await client.post(f"/ea/sites/{site_id}/rest/portforward", json_data=pf_data)
-            created_rule: dict[str, Any] = response.get("data", [{}])[0]
+            # Handle both list and dict responses
+            created_rule: dict[str, Any] = (
+                response[0] if isinstance(response, list) else response.get("data", [{}])[0]
+            )
 
             logger.info(
                 f"Created port forward '{name}' "
@@ -225,7 +231,10 @@ async def delete_port_forward(
 
             # Verify rule exists before deleting
             response = await client.get(f"/ea/sites/{site_id}/rest/portforward")
-            rules_data: list[dict[str, Any]] = response.get("data", [])
+            # Handle both list and dict responses
+            rules_data: list[dict[str, Any]] = (
+                response if isinstance(response, list) else response.get("data", [])
+            )
 
             rule_exists = any(rule.get("_id") == rule_id for rule in rules_data)
             if not rule_exists:

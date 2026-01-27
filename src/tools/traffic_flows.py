@@ -123,6 +123,22 @@ async def get_flow_statistics(site_id: str, settings: Settings, time_range: str 
                 unique_destinations=0,
             ).model_dump()
 
+        # Handle empty response (no traffic data)
+        if not data or data == {}:
+            logger.info(f"No flow statistics available for site {site_id}")
+            return FlowStatistics(  # type: ignore[no-any-return]
+                site_id=site_id,
+                time_range=time_range,
+                total_flows=0,
+                total_bytes_sent=0,
+                total_bytes_received=0,
+                total_bytes=0,
+                total_packets_sent=0,
+                total_packets_received=0,
+                unique_sources=0,
+                unique_destinations=0,
+            ).model_dump()
+
         return FlowStatistics(**data).model_dump()  # type: ignore[no-any-return]
 
 

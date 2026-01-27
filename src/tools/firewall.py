@@ -61,6 +61,8 @@ async def create_firewall_rule(
     protocol: str | None = None,
     port: int | None = None,
     enabled: bool = True,
+    ruleset: str = "WAN_IN",
+    rule_index: int = 2000,
     confirm: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Any]:
@@ -76,6 +78,8 @@ async def create_firewall_rule(
         protocol: Protocol (tcp, udp, icmp, all)
         port: Destination port number
         enabled: Enable the rule immediately
+        ruleset: Ruleset to apply rule to (WAN_IN, WAN_OUT, LAN_IN, etc.)
+        rule_index: Position in firewall chain (higher = lower priority)
         confirm: Confirmation flag (must be True to execute)
         dry_run: If True, validate but don't create the rule
 
@@ -101,11 +105,23 @@ async def create_firewall_rule(
         if protocol.lower() not in valid_protocols:
             raise ValueError(f"Invalid protocol '{protocol}'. Must be one of: {valid_protocols}")
 
-    # Build rule data
+    # Build rule data with required defaults
     rule_data = {
         "name": name,
         "action": action.lower(),
         "enabled": enabled,
+        "ruleset": ruleset,
+        "rule_index": rule_index,
+        # Required default fields
+        "setting_preference": "auto",
+        "src_networkconf_type": "NETv4",
+        "dst_networkconf_type": "NETv4",
+        "state_new": False,
+        "state_established": False,
+        "state_invalid": False,
+        "state_related": False,
+        "logging": False,
+        "protocol_match_excepted": False,
     }
 
     if source:
@@ -151,9 +167,11 @@ async def create_firewall_rule(
                 f"/ea/sites/{site_id}/rest/firewallrule", json_data=rule_data
             )
             # Client now auto-unwraps the "data" field, so response is the actual data
-            created_rule: dict[str, Any] = (
-                response[0] if isinstance(response, list) else response.get("data", [{}])[0]
-            )
+            if isinstance(response, list):
+                created_rule: dict[str, Any] = response[0]
+            else:
+                data_list = response.get("data", [{}])
+                created_rule = data_list[0] if isinstance(data_list, list) else {}
 
             logger.info(f"Created firewall rule '{name}' in site '{site_id}'")
             log_audit(
@@ -294,9 +312,11 @@ async def update_firewall_rule(
                 f"/ea/sites/{site_id}/rest/firewallrule/{rule_id}", json_data=update_data
             )
             # Client now auto-unwraps the "data" field, so response is the actual data
-            updated_rule: dict[str, Any] = (
-                response[0] if isinstance(response, list) else response.get("data", [{}])[0]
-            )
+            if isinstance(response, list):
+                updated_rule: dict[str, Any] = response[0]
+            else:
+                data_list = response.get("data", [{}])
+                updated_rule = data_list[0] if isinstance(data_list, list) else {}
 
             logger.info(f"Updated firewall rule '{rule_id}' in site '{site_id}'")
             log_audit(

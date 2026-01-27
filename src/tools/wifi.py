@@ -40,7 +40,10 @@ async def list_wlans(
         await client.authenticate()
 
         response = await client.get(f"/ea/sites/{site_id}/rest/wlanconf")
-        wlans_data: list[dict[str, Any]] = response.get("data", [])
+        # Handle both list and dict responses
+        wlans_data: list[dict[str, Any]] = (
+            response if isinstance(response, list) else response.get("data", [])
+        )
 
         # Apply pagination
         paginated = wlans_data[offset : offset + limit]

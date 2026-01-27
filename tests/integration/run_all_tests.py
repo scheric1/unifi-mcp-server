@@ -37,30 +37,46 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from dotenv import load_dotenv
 
 # Import all test suites
+from tests.integration.test_client_ops_suite import create_client_ops_suite
+from tests.integration.test_client_suite import create_client_suite
 from tests.integration.test_cloud_suite import create_cloud_suite
+from tests.integration.test_device_ops_suite import create_device_ops_suite
+from tests.integration.test_device_suite import create_device_suite
+from tests.integration.test_dpi_suite import create_dpi_suite
+from tests.integration.test_firewall_suite import create_firewall_suite
+from tests.integration.test_firewall_zones_suite import create_firewall_zones_suite
 from tests.integration.test_harness import TestEnvironment, TestHarness
+from tests.integration.test_network_suite import create_network_suite
+from tests.integration.test_port_forwarding_suite import create_port_forwarding_suite
 from tests.integration.test_topology_suite import create_topology_suite
+from tests.integration.test_traffic_flows_suite import create_traffic_flows_suite
 
 
 def discover_test_suites():
     """Discover and return all test suites."""
     suites = []
 
-    # Register cloud API suite (basic operations)
-    suites.append(create_cloud_suite())
+    # Week 1: Safe read-only test suites
+    suites.append(create_device_suite())  # Device management (8 tests)
+    suites.append(create_client_suite())  # Client management (8 tests)
+    suites.append(create_network_suite())  # Network configuration (7 tests)
+    suites.append(create_cloud_suite())  # Site management (10 tests)
 
-    # Register topology suite
-    suites.append(create_topology_suite())
+    # Topology suite (existing)
+    suites.append(create_topology_suite())  # Network topology (8 tests)
 
-    # TODO: Add more test suites as they are created
-    # from tests.integration.test_firewall_suite import create_firewall_suite
-    # suites.append(create_firewall_suite())
-    #
-    # from tests.integration.test_qos_suite import create_qos_suite
-    # suites.append(create_qos_suite())
-    #
-    # from tests.integration.test_backup_suite import create_backup_suite
-    # suites.append(create_backup_suite())
+    # Week 2: Medium risk test suites
+    suites.append(create_firewall_suite())  # Firewall management (9 tests)
+    suites.append(create_port_forwarding_suite())  # Port forwarding (7 tests)
+    suites.append(create_dpi_suite())  # DPI statistics (5 tests)
+
+    # Week 3: High risk test suites
+    suites.append(create_traffic_flows_suite())  # Traffic flow monitoring (11 tests)
+    suites.append(create_firewall_zones_suite())  # Firewall zones (8 tests)
+
+    # Week 4: Destructive operations test suites (DRY-RUN ONLY)
+    suites.append(create_device_ops_suite())  # Device operations (5 tests)
+    suites.append(create_client_ops_suite())  # Client operations (4 tests)
 
     return suites
 
