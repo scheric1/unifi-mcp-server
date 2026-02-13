@@ -1033,6 +1033,17 @@ We welcome contributions from both human developers and AI coding assistants! Pl
 5. Commit with conventional commits: `feat: add new feature`
 6. Push and create a pull request
 
+### Automated Bug Reports
+
+Found a bug? Issues with `[Bug]` in the title are automatically analyzed by our AI bug handler:
+
+- **Instant Response**: Get immediate feedback on your bug report
+- **Smart Analysis**: AI determines if it's a real bug or usage issue
+- **Auto-Fix**: Simple bugs may be automatically fixed with a PR
+- **Helpful Guidance**: Usage issues receive documentation and examples
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#automated-workflows) for more details.
+
 ## Security
 
 Security is a top priority. Please see [SECURITY.md](SECURITY.md) for:

@@ -350,6 +350,46 @@ This PR was created with assistance from [AI Tool Name].
 
 See `AI_GIT_PRACTICES.md` and `CONTRIBUTION_BEST_PRACTICES.md` for additional AI-specific guidance.
 
+## Automated Workflows
+
+### Bug Report Handler
+
+The repository includes an automated bug report handler that activates when issues are created with `[Bug]` in the title:
+
+**How It Works:**
+
+1. **Automatic Trigger:** The workflow activates when a new issue is opened with `[Bug]` in the title
+2. **Intelligent Analysis:** Claude AI analyzes the bug report to determine if it's:
+   - A real bug that needs fixing
+   - A usage misunderstanding that needs clarification
+   - A duplicate of an existing issue
+
+3. **Automated Actions:**
+   - **For Usage Issues:** Posts helpful comments with correct usage examples, references documentation, and may close the issue with explanation
+   - **For Real Bugs:** Attempts to reproduce and fix the bug, creates a PR with tests if successful
+   - **For Complex Bugs:** Acknowledges the issue, adds appropriate labels, and tags maintainers
+
+**What to Expect:**
+
+- The workflow typically responds within a few minutes
+- It will add appropriate labels (bug, documentation, needs-investigation, etc.)
+- It may create a pull request if the bug can be automatically fixed
+- It will always provide helpful feedback to the issue reporter
+
+**Best Practices for Bug Reports:**
+
+To get the most helpful automated response:
+
+- Use the bug report template (`.github/ISSUE_TEMPLATE/bug_report.md`)
+- Include complete error messages and stack traces
+- Specify your environment (API mode, UniFi version, Python version)
+- Describe steps to reproduce the issue
+- Indicate what you expected vs. what actually happened
+
+**Manual Override:**
+
+If you believe the automated response is incorrect, simply comment on the issue and a human maintainer will review it.
+
 ## Testing Requirements
 
 ### Unit Tests
