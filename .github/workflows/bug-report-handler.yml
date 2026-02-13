@@ -1,0 +1,104 @@
+name: Bug Report Handler
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+jobs:
+  bug-handler:
+    # Only run for issues with [Bug] in the title
+    if: startsWith(github.event.issue.title, '[Bug]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Bug Analysis
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY: ${{ github.event.issue.body }}
+            AUTHOR: ${{ github.event.issue.user.login }}
+
+            You are a bug report handler for the UniFi MCP Server project.
+
+            ## Your Task
+
+            Analyze this bug report and determine:
+
+            1. **Is this a real bug or a usage misunderstanding?**
+               - Check if the issue is caused by incorrect configuration, wrong API mode,
+                 or missing documentation
+               - Review the error messages and stack traces if provided
+               - Check if similar issues exist in the repository
+
+            2. **If it's a USAGE MISUNDERSTANDING:**
+               - Post a helpful comment explaining the correct usage
+               - Include specific configuration examples
+               - Reference relevant documentation (README.md, API.md, docs/)
+               - Explain API mode limitations (local vs cloud)
+               - Add the "documentation" and "needs-documentation" labels if docs need
+                 improvement
+               - Close the issue as "not planned" with a kind explanation
+
+            3. **If it's a REAL BUG:**
+               - Attempt to reproduce and fix the bug if possible
+               - Create a branch named `fix/bug-<issue-number>-<short-description>`
+               - Write focused tests that validate the fix
+               - Make minimal changes to fix the issue
+               - Run existing tests to ensure no regressions
+               - Create a pull request with:
+                 * Title: "Fix: <description of bug> (#<issue-number>)"
+                 * Link to the original issue
+                 * Description of the problem and solution
+                 * Test results
+               - Add appropriate labels (bug, priority:high/medium/low)
+               - Comment on the issue with a link to the PR
+
+            4. **If you CANNOT FIX the bug:**
+               - Post a comment acknowledging the bug
+               - Explain why you cannot fix it (complexity, missing information, etc.)
+               - Add labels: bug, needs-investigation, help-wanted
+               - Suggest workarounds if available
+               - Tag maintainers if critical: @enuno
+
+            ## Important Guidelines
+
+            - Be respectful and helpful in all communications
+            - Focus on minimal, surgical changes when fixing bugs
+            - Always run tests before creating a PR
+            - Use the existing code patterns and conventions
+            - Follow the project's style guide (see AGENTS.md)
+            - Check for similar issues before making changes
+            - Update documentation if the bug reveals unclear behavior
+
+            ## Available Tools
+
+            - Explore the codebase with read, grep, and glob tools
+            - Run tests with pytest
+            - Create branches and pull requests
+            - Comment on issues
+            - Add/remove labels
+
+          claude_args: |
+            --model claude-opus-4-1-20250805
+            --max-turns 25
+            --allowedTools "Read,Edit,Create,Bash(pytest:*),Bash(git:*),Bash(gh:*),
+            Bash(uv:*),Bash(python:*),Bash(grep:*),Bash(find:*)"
+            --system-prompt "Follow the project's coding standards in AGENTS.md.
+            Ensure all code changes have tests. Make minimal, focused changes.
+            Be respectful and helpful when communicating."
