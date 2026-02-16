@@ -464,3 +464,219 @@ async def search_across_sites(
         )
 
         return search_result.model_dump()  # type: ignore[no-any-return]
+
+
+# ISP Metrics Tools (added 2026-02-16)
+async def get_isp_metrics(settings: Settings, site_id: str) -> dict[str, Any]:
+    """Get ISP metrics for a specific site.
+
+    Args:
+        settings: Application settings
+        site_id: Site identifier
+
+    Returns:
+        ISP metrics data including bandwidth, latency, jitter, and packet loss
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(f"Retrieving ISP metrics for site: {site_id}")
+
+        response = await client.get_isp_metrics(site_id)
+        data = response.get("data", response)
+
+        from ..models.site_manager import ISPMetrics
+
+        return ISPMetrics(**data).model_dump()  # type: ignore[no-any-return]
+
+
+async def query_isp_metrics(
+    settings: Settings,
+    site_id: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+) -> list[dict[str, Any]]:
+    """Query ISP metrics with optional filters.
+
+    Args:
+        settings: Application settings
+        site_id: Optional site identifier (None for all sites)
+        start_time: Optional start time in ISO format (e.g., "2026-02-01T00:00:00Z")
+        end_time: Optional end time in ISO format
+
+    Returns:
+        List of ISP metrics matching the query
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(
+            f"Querying ISP metrics (site_id={site_id}, start={start_time}, end={end_time})"
+        )
+
+        response = await client.query_isp_metrics(site_id, start_time, end_time)
+        data = response.get("data", response)
+
+        from ..models.site_manager import ISPMetrics
+
+        # Handle both single result and list of results
+        if isinstance(data, list):
+            return [ISPMetrics(**item).model_dump() for item in data]
+        else:
+            return [ISPMetrics(**data).model_dump()]
+
+
+# SD-WAN Configuration Tools (added 2026-02-16)
+async def list_sdwan_configs(settings: Settings) -> list[dict[str, Any]]:
+    """List all SD-WAN configurations.
+
+    Args:
+        settings: Application settings
+
+    Returns:
+        List of SD-WAN configurations
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info("Retrieving SD-WAN configurations")
+
+        response = await client.list_sdwan_configs()
+        data = response.get("data", response.get("configs", []))
+
+        from ..models.site_manager import SDWANConfig
+
+        if isinstance(data, list):
+            return [SDWANConfig(**config).model_dump() for config in data]
+        else:
+            return []
+
+
+async def get_sdwan_config(settings: Settings, config_id: str) -> dict[str, Any]:
+    """Get SD-WAN configuration by ID.
+
+    Args:
+        settings: Application settings
+        config_id: Configuration identifier
+
+    Returns:
+        SD-WAN configuration details
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(f"Retrieving SD-WAN configuration: {config_id}")
+
+        response = await client.get_sdwan_config(config_id)
+        data = response.get("data", response)
+
+        from ..models.site_manager import SDWANConfig
+
+        return SDWANConfig(**data).model_dump()  # type: ignore[no-any-return]
+
+
+async def get_sdwan_config_status(settings: Settings, config_id: str) -> dict[str, Any]:
+    """Get SD-WAN configuration deployment status.
+
+    Args:
+        settings: Application settings
+        config_id: Configuration identifier
+
+    Returns:
+        SD-WAN configuration deployment status
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(f"Retrieving SD-WAN configuration status: {config_id}")
+
+        response = await client.get_sdwan_config_status(config_id)
+        data = response.get("data", response)
+
+        from ..models.site_manager import SDWANConfigStatus
+
+        return SDWANConfigStatus(**data).model_dump()  # type: ignore[no-any-return]
+
+
+# Host Management Tools (added 2026-02-16)
+async def list_hosts(
+    settings: Settings, limit: int | None = None, offset: int | None = None
+) -> list[dict[str, Any]]:
+    """List all managed hosts/consoles.
+
+    Args:
+        settings: Application settings
+        limit: Optional maximum number of hosts to return
+        offset: Optional number of hosts to skip (for pagination)
+
+    Returns:
+        List of managed hosts
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(f"Retrieving hosts list (limit={limit}, offset={offset})")
+
+        response = await client.list_hosts(limit, offset)
+        data = response.get("data", response.get("hosts", []))
+
+        from ..models.site_manager import Host
+
+        if isinstance(data, list):
+            return [Host(**host).model_dump() for host in data]
+        else:
+            return []
+
+
+async def get_host(settings: Settings, host_id: str) -> dict[str, Any]:
+    """Get host details by ID.
+
+    Args:
+        settings: Application settings
+        host_id: Host identifier
+
+    Returns:
+        Host details
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info(f"Retrieving host details: {host_id}")
+
+        response = await client.get_host(host_id)
+        data = response.get("data", response)
+
+        from ..models.site_manager import Host
+
+        return Host(**data).model_dump()  # type: ignore[no-any-return]
+
+
+# Version Control Tool (added 2026-02-16)
+async def get_version_control(settings: Settings) -> dict[str, Any]:
+    """Get API version control information.
+
+    Args:
+        settings: Application settings
+
+    Returns:
+        Version control information including current, latest, and deprecated versions
+    """
+    if not settings.site_manager_enabled:
+        raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
+
+    async with SiteManagerClient(settings) as client:
+        logger.info("Retrieving API version control information")
+
+        response = await client.get_version_control()
+        data = response.get("data", response)
+
+        from ..models.site_manager import VersionControl
+
+        return VersionControl(**data).model_dump()  # type: ignore[no-any-return]

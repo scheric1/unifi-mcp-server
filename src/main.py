@@ -2374,6 +2374,60 @@ async def search_across_sites(query: str, search_type: str = "all") -> dict:
     return await site_manager_tools.search_across_sites(settings, query, search_type)
 
 
+# Site Manager - ISP Metrics Tools (added 2026-02-16)
+@mcp.tool()
+async def get_isp_metrics(site_id: str) -> dict:
+    """Get ISP metrics for a specific site."""
+    return await site_manager_tools.get_isp_metrics(settings, site_id)
+
+
+@mcp.tool()
+async def query_isp_metrics(
+    site_id: str | None = None, start_time: str | None = None, end_time: str | None = None
+) -> list[dict]:
+    """Query ISP metrics with optional filters."""
+    return await site_manager_tools.query_isp_metrics(settings, site_id, start_time, end_time)
+
+
+# Site Manager - SD-WAN Configuration Tools (added 2026-02-16)
+@mcp.tool()
+async def list_sdwan_configs() -> list[dict]:
+    """List all SD-WAN configurations."""
+    return await site_manager_tools.list_sdwan_configs(settings)
+
+
+@mcp.tool()
+async def get_sdwan_config(config_id: str) -> dict:
+    """Get SD-WAN configuration by ID."""
+    return await site_manager_tools.get_sdwan_config(settings, config_id)
+
+
+@mcp.tool()
+async def get_sdwan_config_status(config_id: str) -> dict:
+    """Get SD-WAN configuration deployment status."""
+    return await site_manager_tools.get_sdwan_config_status(settings, config_id)
+
+
+# Site Manager - Host Management Tools (added 2026-02-16)
+@mcp.tool()
+async def list_hosts(limit: int | None = None, offset: int | None = None) -> list[dict]:
+    """List all managed hosts/consoles."""
+    return await site_manager_tools.list_hosts(settings, limit, offset)
+
+
+@mcp.tool()
+async def get_host(host_id: str) -> dict:
+    """Get host details by ID."""
+    return await site_manager_tools.get_host(settings, host_id)
+
+
+# Site Manager - Version Control Tool (added 2026-02-16)
+@mcp.tool()
+async def get_version_control() -> dict:
+    """Get API version control information."""
+    return await site_manager_tools.get_version_control(settings)
+
+
 # Additional MCP Resources
 # ⚠️ REMOVED: sites://{site_id}/firewall/matrix resource
 # ZBF matrix endpoint does not exist in UniFi API v10.0.156
