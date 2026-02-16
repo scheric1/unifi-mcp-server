@@ -185,6 +185,10 @@ temp/
 test-results/
 docs/bugs/
 
+# Session work notes and local test results (may contain internal IPs)
+session-work.md
+TEST_RESULTS.md
+
 # Git worktrees
 .worktrees/
 

@@ -31,7 +31,7 @@ We take the security of the UniFi MCP Server seriously. If you believe you have 
 
 **Alternatively, you can email the maintainers directly at:**
 
-- <security@homelab.local> (replace with actual contact)
+- Use [GitHub Security Advisories](https://github.com/enuno/unifi-mcp-server/security/advisories) to report vulnerabilities
 
 ### What to Include in Your Report
 
@@ -469,9 +469,8 @@ This project strives to follow:
 
 For security-related questions or concerns:
 
-- **Security Team:** <security@homelab.local>
-- **Project Maintainer:** <elvis@homelab.local>
-- **GitHub Security:** Use GitHub Security Advisories
+- **Security Reports:** Use [GitHub Security Advisories](https://github.com/enuno/unifi-mcp-server/security/advisories)
+- **Project Issues:** [GitHub Issues](https://github.com/enuno/unifi-mcp-server/issues)
 
 ## Acknowledgments
 
