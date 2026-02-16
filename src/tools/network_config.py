@@ -58,7 +58,7 @@ async def create_network(
         ValidationError: If validation fails
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "network configuration operation")
+    validate_confirmation(confirm, "network configuration operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate VLAN ID
@@ -202,7 +202,7 @@ async def update_network(
         ResourceNotFoundError: If network not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "network configuration operation")
+    validate_confirmation(confirm, "network configuration operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate VLAN ID if provided
@@ -342,7 +342,7 @@ async def delete_network(
         ResourceNotFoundError: If network not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "network configuration operation")
+    validate_confirmation(confirm, "network configuration operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "network_id": network_id}

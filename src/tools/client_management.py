@@ -40,7 +40,7 @@ async def block_client(
     """
     site_id = validate_site_id(site_id)
     client_mac = validate_mac_address(client_mac)
-    validate_confirmation(confirm, "client management operation")
+    validate_confirmation(confirm, "client management operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "client_mac": client_mac}
@@ -128,7 +128,7 @@ async def unblock_client(
     """
     site_id = validate_site_id(site_id)
     client_mac = validate_mac_address(client_mac)
-    validate_confirmation(confirm, "client management operation")
+    validate_confirmation(confirm, "client management operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "client_mac": client_mac}
@@ -208,7 +208,7 @@ async def reconnect_client(
     """
     site_id = validate_site_id(site_id)
     client_mac = validate_mac_address(client_mac)
-    validate_confirmation(confirm, "client management operation")
+    validate_confirmation(confirm, "client management operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "client_mac": client_mac}
@@ -310,7 +310,7 @@ async def authorize_guest(
     """
     site_id = validate_site_id(site_id)
     client_mac = validate_mac_address(client_mac)
-    validate_confirmation(confirm, "client management operation")
+    validate_confirmation(confirm, "client management operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {
@@ -415,7 +415,7 @@ async def limit_bandwidth(
     """
     site_id = validate_site_id(site_id)
     client_mac = validate_mac_address(client_mac)
-    validate_confirmation(confirm, "client management operation")
+    validate_confirmation(confirm, "client management operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate bandwidth limits

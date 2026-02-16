@@ -620,7 +620,7 @@ async def block_flow_source_ip(
     Returns:
         Block action result
     """
-    validate_confirmation(confirm, "block flow source IP")
+    validate_confirmation(confirm, "block flow source IP", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Blocking source IP from flow {flow_id}")
@@ -721,7 +721,7 @@ async def block_flow_destination_ip(
     Returns:
         Block action result
     """
-    validate_confirmation(confirm, "block flow destination IP")
+    validate_confirmation(confirm, "block flow destination IP", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Blocking destination IP from flow {flow_id}")
@@ -822,7 +822,7 @@ async def block_flow_application(
     Returns:
         Block action result
     """
-    validate_confirmation(confirm, "block flow application")
+    validate_confirmation(confirm, "block flow application", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Blocking application from flow {flow_id}")

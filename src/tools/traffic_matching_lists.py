@@ -118,7 +118,7 @@ async def create_traffic_matching_list(
         ValidationError: If validation fails
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "traffic matching list operation")
+    validate_confirmation(confirm, "traffic matching list operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate list type
@@ -212,7 +212,7 @@ async def update_traffic_matching_list(
         ResourceNotFoundError: If list not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "traffic matching list operation")
+    validate_confirmation(confirm, "traffic matching list operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate list type if provided
@@ -318,7 +318,7 @@ async def delete_traffic_matching_list(
         ResourceNotFoundError: If list not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "traffic matching list operation")
+    validate_confirmation(confirm, "traffic matching list operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "list_id": list_id}

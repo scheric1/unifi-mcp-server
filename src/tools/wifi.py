@@ -106,7 +106,7 @@ async def create_wlan(
         ValidationError: If validation fails
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "wifi operation")
+    validate_confirmation(confirm, "wifi operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate security type
@@ -274,7 +274,7 @@ async def update_wlan(
         ResourceNotFoundError: If WLAN not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "wifi operation")
+    validate_confirmation(confirm, "wifi operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate security type if provided
@@ -418,7 +418,7 @@ async def delete_wlan(
         ResourceNotFoundError: If WLAN not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "wifi operation")
+    validate_confirmation(confirm, "wifi operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "wlan_id": wlan_id}

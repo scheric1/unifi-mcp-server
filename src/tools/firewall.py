@@ -56,8 +56,8 @@ async def create_firewall_rule(
     name: str,
     action: str,
     settings: Settings,
-    source: str | None = None,
-    destination: str | None = None,
+    src_address: str | None = None,
+    dst_address: str | None = None,
     protocol: str | None = None,
     port: int | None = None,
     enabled: bool = True,
@@ -82,8 +82,8 @@ async def create_firewall_rule(
         name: Rule name
         action: Action to take (accept, drop, reject)
         settings: Application settings
-        source: Source IP address (CIDR notation or single IP)
-        destination: Destination IP address (CIDR notation or single IP)
+        src_address: Source IP address (CIDR notation or single IP)
+        dst_address: Destination IP address (CIDR notation or single IP)
         protocol: Protocol (tcp, udp, icmp, all)
         port: Destination port number
         enabled: Enable the rule immediately
@@ -109,7 +109,7 @@ async def create_firewall_rule(
         ValidationError: If validation fails
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "firewall operation")
+    validate_confirmation(confirm, "firewall operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate action
@@ -147,11 +147,11 @@ async def create_firewall_rule(
     if dst_networkconf_id is not None:
         rule_data["dst_networkconf_id"] = dst_networkconf_id
 
-    if source:
-        rule_data["src_address"] = source
+    if src_address:
+        rule_data["src_address"] = src_address
 
-    if destination:
-        rule_data["dst_address"] = destination
+    if dst_address:
+        rule_data["dst_address"] = dst_address
 
     if protocol:
         rule_data["protocol"] = protocol.lower()
@@ -164,8 +164,8 @@ async def create_firewall_rule(
         "site_id": site_id,
         "name": name,
         "action": action,
-        "source": source,
-        "destination": destination,
+        "src_address": src_address,
+        "dst_address": dst_address,
         "protocol": protocol,
         "port": port,
         "enabled": enabled,
@@ -223,8 +223,8 @@ async def update_firewall_rule(
     settings: Settings,
     name: str | None = None,
     action: str | None = None,
-    source: str | None = None,
-    destination: str | None = None,
+    src_address: str | None = None,
+    dst_address: str | None = None,
     protocol: str | None = None,
     port: int | None = None,
     enabled: bool | None = None,
@@ -239,8 +239,8 @@ async def update_firewall_rule(
         settings: Application settings
         name: New rule name
         action: New action (accept, drop, reject)
-        source: New source network/IP
-        destination: New destination network/IP
+        src_address: New source network/IP
+        dst_address: New destination network/IP
         protocol: New protocol (tcp, udp, icmp, all)
         port: New destination port
         enabled: Enable/disable the rule
@@ -255,7 +255,7 @@ async def update_firewall_rule(
         ResourceNotFoundError: If rule not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "firewall operation")
+    validate_confirmation(confirm, "firewall operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate action if provided
@@ -275,8 +275,8 @@ async def update_firewall_rule(
         "rule_id": rule_id,
         "name": name,
         "action": action,
-        "source": source,
-        "destination": destination,
+        "src_address": src_address,
+        "dst_address": dst_address,
         "protocol": protocol,
         "port": port,
         "enabled": enabled,
@@ -320,10 +320,10 @@ async def update_firewall_rule(
                 update_data["name"] = name
             if action is not None:
                 update_data["action"] = action.lower()
-            if source is not None:
-                update_data["src_address"] = source
-            if destination is not None:
-                update_data["dst_address"] = destination
+            if src_address is not None:
+                update_data["src_address"] = src_address
+            if dst_address is not None:
+                update_data["dst_address"] = dst_address
             if protocol is not None:
                 update_data["protocol"] = protocol.lower()
             if port is not None:
@@ -386,7 +386,7 @@ async def delete_firewall_rule(
         ResourceNotFoundError: If rule not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "firewall operation")
+    validate_confirmation(confirm, "firewall operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "rule_id": rule_id}

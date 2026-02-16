@@ -137,20 +137,22 @@ def coerce_bool(value) -> bool:
     return bool(value)
 
 
-def validate_confirmation(confirm, operation: str) -> None:
+def validate_confirmation(confirm, operation: str, dry_run=False) -> None:
     """Validate that confirmation is provided for mutating operations.
+
+    Skips validation when dry_run is True, allowing users to preview
+    operations without needing to set confirm=True.
 
     Args:
         confirm: Confirmation flag (bool or string from MCP serialization)
         operation: Operation name
+        dry_run: If True, skip confirmation check (preview mode)
 
     Raises:
-        ValidationError: If confirmation is not provided
+        ValidationError: If confirmation is not provided and not in dry-run mode
     """
-    logger.warning(
-        "validate_confirmation called: confirm=%r (type=%s), operation=%s",
-        confirm, type(confirm).__name__, operation,
-    )
+    if coerce_bool(dry_run):
+        return
     if not coerce_bool(confirm):
         raise ValidationError(
             f"Operation '{operation}' requires confirmation. Set confirm=true to proceed."

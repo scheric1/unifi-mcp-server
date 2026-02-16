@@ -40,7 +40,7 @@ async def restart_device(
     """
     site_id = validate_site_id(site_id)
     device_mac = validate_mac_address(device_mac)
-    validate_confirmation(confirm, "device control operation")
+    validate_confirmation(confirm, "device control operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "device_mac": device_mac}
@@ -137,7 +137,7 @@ async def locate_device(
     """
     site_id = validate_site_id(site_id)
     device_mac = validate_mac_address(device_mac)
-    validate_confirmation(confirm, "device control operation")
+    validate_confirmation(confirm, "device control operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "device_mac": device_mac, "enabled": enabled}
@@ -242,7 +242,7 @@ async def upgrade_device(
     """
     site_id = validate_site_id(site_id)
     device_mac = validate_mac_address(device_mac)
-    validate_confirmation(confirm, "device control operation")
+    validate_confirmation(confirm, "device control operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {

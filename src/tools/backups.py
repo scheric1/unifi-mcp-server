@@ -59,7 +59,7 @@ async def trigger_backup(
         - Backup files are named with timestamp: backup_YYYY-MM-DD_HH-MM-SS.unf
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "backup operation")
+    validate_confirmation(confirm, "backup operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate backup type
@@ -390,7 +390,7 @@ async def delete_backup(
         Ensure you have downloaded or don't need the backup before deleting.
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "backup deletion")
+    validate_confirmation(confirm, "backup deletion", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {
@@ -501,7 +501,7 @@ async def restore_backup(
         rollback if needed.
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "RESTORE operation - this will OVERWRITE current configuration")
+    validate_confirmation(confirm, "RESTORE operation - this will OVERWRITE current configuration", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {
@@ -946,7 +946,7 @@ async def schedule_backups(
         - Cloud backup requires UniFi account and cloud access enabled
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "backup schedule configuration")
+    validate_confirmation(confirm, "backup schedule configuration", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate backup type

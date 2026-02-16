@@ -135,7 +135,7 @@ async def create_port_profile(
         DuplicateResourceError: If profile name already exists
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "port profile creation")
+    validate_confirmation(confirm, "port profile creation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate forward mode
@@ -284,7 +284,7 @@ async def update_port_profile(
         ResourceNotFoundError: If profile not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "port profile update")
+    validate_confirmation(confirm, "port profile update", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     if not profile_id:
@@ -412,7 +412,7 @@ async def delete_port_profile(
         ResourceNotFoundError: If profile not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "port profile deletion")
+    validate_confirmation(confirm, "port profile deletion", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     if not profile_id:
@@ -552,7 +552,7 @@ async def set_device_port_overrides(
         ResourceNotFoundError: If device not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "device port override")
+    validate_confirmation(confirm, "device port override", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     if not device_id:

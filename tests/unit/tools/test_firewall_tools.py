@@ -356,7 +356,7 @@ async def test_create_firewall_rule_with_source(mock_settings):
             name="Allow from LAN",
             action="accept",
             settings=mock_settings,
-            source="192.168.1.0/24",
+            src_address="192.168.1.0/24",
             confirm=True,
         )
 
@@ -395,7 +395,7 @@ async def test_create_firewall_rule_with_destination(mock_settings):
             name="Block to Server",
             action="drop",
             settings=mock_settings,
-            destination="10.0.0.100/32",
+            dst_address="10.0.0.100/32",
             confirm=True,
         )
 
@@ -521,8 +521,8 @@ async def test_create_firewall_rule_full_options(mock_settings):
             name="Full Options Rule",
             action="accept",
             settings=mock_settings,
-            source="192.168.1.0/24",
-            destination="10.0.0.0/8",
+            src_address="192.168.1.0/24",
+            dst_address="10.0.0.0/8",
             protocol="tcp",
             port=8080,
             enabled=True,
@@ -768,7 +768,7 @@ async def test_update_firewall_rule_multiple_fields(mock_settings):
             settings=mock_settings,
             name="New Name",
             action="drop",
-            source="192.168.1.0/24",
+            src_address="192.168.1.0/24",
             protocol="udp",
             port=53,
             enabled=False,

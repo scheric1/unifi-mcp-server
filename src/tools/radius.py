@@ -102,7 +102,7 @@ async def create_radius_profile(
     Returns:
         Created RADIUS profile
     """
-    validate_confirmation(confirm, "create RADIUS profile")
+    validate_confirmation(confirm, "create RADIUS profile", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Creating RADIUS profile '{name}' for site {site_id}")
@@ -201,7 +201,7 @@ async def update_radius_profile(
     Returns:
         Updated RADIUS profile
     """
-    validate_confirmation(confirm, "update RADIUS profile")
+    validate_confirmation(confirm, "update RADIUS profile", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Updating RADIUS profile {profile_id} for site {site_id}")
@@ -292,7 +292,7 @@ async def delete_radius_profile(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "delete RADIUS profile")
+    validate_confirmation(confirm, "delete RADIUS profile", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Deleting RADIUS profile {profile_id} for site {site_id}")
@@ -387,7 +387,7 @@ async def create_radius_account(
     Returns:
         Created RADIUS account
     """
-    validate_confirmation(confirm, "create RADIUS account")
+    validate_confirmation(confirm, "create RADIUS account", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Creating RADIUS account '{username}' for site {site_id}")
@@ -466,7 +466,7 @@ async def delete_radius_account(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "delete RADIUS account")
+    validate_confirmation(confirm, "delete RADIUS account", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Deleting RADIUS account {account_id} for site {site_id}")
@@ -556,7 +556,7 @@ async def configure_guest_portal(
     Returns:
         Updated guest portal configuration
     """
-    validate_confirmation(confirm, "configure guest portal")
+    validate_confirmation(confirm, "configure guest portal", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Configuring guest portal for site {site_id}")
@@ -687,7 +687,7 @@ async def create_hotspot_package(
     Returns:
         Created hotspot package
     """
-    validate_confirmation(confirm, "create hotspot package")
+    validate_confirmation(confirm, "create hotspot package", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Creating hotspot package '{name}' for site {site_id}")
@@ -755,7 +755,7 @@ async def delete_hotspot_package(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "delete hotspot package")
+    validate_confirmation(confirm, "delete hotspot package", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Deleting hotspot package {package_id} for site {site_id}")

@@ -103,7 +103,7 @@ async def create_vouchers(
     Returns:
         Created voucher codes
     """
-    validate_confirmation(confirm, "create vouchers")
+    validate_confirmation(confirm, "create vouchers", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Creating {count} vouchers for site {site_id}")
@@ -171,7 +171,7 @@ async def delete_voucher(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "delete voucher")
+    validate_confirmation(confirm, "delete voucher", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Deleting voucher {voucher_id} for site {site_id}")
@@ -217,7 +217,7 @@ async def bulk_delete_vouchers(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "bulk delete vouchers")
+    validate_confirmation(confirm, "bulk delete vouchers", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Bulk deleting vouchers for site {site_id} with filter: {filter_expr}")

@@ -255,6 +255,29 @@ class TestValidateConfirmation:
             validate_confirmation(False, "delete_network")
         assert "delete_network" in str(exc_info.value)
 
+    def test_dry_run_skips_confirmation_when_confirm_false(self):
+        # Should NOT raise - dry_run=True bypasses confirmation
+        validate_confirmation(False, "test_operation", dry_run=True)
+
+    def test_dry_run_skips_confirmation_when_confirm_none(self):
+        validate_confirmation(None, "test_operation", dry_run=True)
+
+    def test_dry_run_string_true_skips_confirmation(self):
+        validate_confirmation(False, "test_operation", dry_run="true")
+
+    def test_dry_run_false_still_requires_confirmation(self):
+        with pytest.raises(ValidationError, match="requires confirmation"):
+            validate_confirmation(False, "test_operation", dry_run=False)
+
+    def test_dry_run_string_false_still_requires_confirmation(self):
+        with pytest.raises(ValidationError, match="requires confirmation"):
+            validate_confirmation(False, "test_operation", dry_run="false")
+
+    def test_dry_run_default_is_false(self):
+        # Without dry_run param, confirm=False should still raise
+        with pytest.raises(ValidationError, match="requires confirmation"):
+            validate_confirmation(False, "test_operation")
+
 
 class TestValidateLimitOffset:
     def test_defaults(self):

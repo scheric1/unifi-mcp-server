@@ -117,7 +117,7 @@ async def create_acl_rule(
     Returns:
         Created ACL rule
     """
-    validate_confirmation(confirm, "create ACL rule")
+    validate_confirmation(confirm, "create ACL rule", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Creating ACL rule '{name}' for site {site_id}")
@@ -221,7 +221,7 @@ async def update_acl_rule(
     Returns:
         Updated ACL rule
     """
-    validate_confirmation(confirm, "update ACL rule")
+    validate_confirmation(confirm, "update ACL rule", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Updating ACL rule {acl_rule_id} for site {site_id}")
@@ -301,7 +301,7 @@ async def delete_acl_rule(
     Returns:
         Deletion status
     """
-    validate_confirmation(confirm, "delete ACL rule")
+    validate_confirmation(confirm, "delete ACL rule", dry_run)
 
     async with UniFiClient(settings) as client:
         logger.info(f"Deleting ACL rule {acl_rule_id} for site {site_id}")

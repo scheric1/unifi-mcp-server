@@ -253,7 +253,7 @@ async def adopt_device(
     Returns:
         Adopted device information
     """
-    validate_confirmation(confirm, "adopt device")
+    validate_confirmation(confirm, "adopt device", dry_run)
     site_id = validate_site_id(site_id)
     device_id = validate_device_id(device_id)
     logger = get_logger(__name__, settings.log_level)
@@ -313,7 +313,7 @@ async def execute_port_action(
     Returns:
         Action result
     """
-    validate_confirmation(confirm, f"execute port action '{action}'")
+    validate_confirmation(confirm, f"execute port action '{action}'", dry_run)
     site_id = validate_site_id(site_id)
     device_id = validate_device_id(device_id)
     logger = get_logger(__name__, settings.log_level)

@@ -92,7 +92,7 @@ async def create_port_forward(
         ValidationError: If validation fails
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "port forwarding operation")
+    validate_confirmation(confirm, "port forwarding operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     # Validate ports
@@ -207,7 +207,7 @@ async def delete_port_forward(
         ResourceNotFoundError: If rule not found
     """
     site_id = validate_site_id(site_id)
-    validate_confirmation(confirm, "port forwarding operation")
+    validate_confirmation(confirm, "port forwarding operation", dry_run)
     logger = get_logger(__name__, settings.log_level)
 
     parameters = {"site_id": site_id, "rule_id": rule_id}

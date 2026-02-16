@@ -132,7 +132,7 @@ async def create_qos_profile(
     Returns:
         Created QoS profile
     """
-    validate_confirmation(confirm, "create QoS profile")
+    validate_confirmation(confirm, "create QoS profile", dry_run)
 
     # Validate priority level
     if not 0 <= priority_level <= 7:
@@ -253,7 +253,7 @@ async def update_qos_profile(
     Returns:
         Updated QoS profile
     """
-    validate_confirmation(confirm, "update QoS profile")
+    validate_confirmation(confirm, "update QoS profile", dry_run)
 
     # Validate priority level if provided
     if priority_level is not None and not 0 <= priority_level <= 7:
@@ -447,7 +447,7 @@ async def create_proav_profile(
     Returns:
         Created QoS profile
     """
-    validate_confirmation(confirm, "create ProAV profile")
+    validate_confirmation(confirm, "create ProAV profile", dry_run)
 
     # Check if it's a ProAV template or reference profile
     if protocol in PROAV_TEMPLATES:
@@ -667,7 +667,7 @@ async def configure_smart_queue(
     Returns:
         SQM configuration
     """
-    validate_confirmation(confirm, "configure Smart Queue Management")
+    validate_confirmation(confirm, "configure Smart Queue Management", dry_run)
 
     # Validate bandwidth
     if download_kbps <= 0 or upload_kbps <= 0:
@@ -866,7 +866,7 @@ async def create_traffic_route(
     Returns:
         Created traffic route
     """
-    validate_confirmation(confirm, "create traffic route")
+    validate_confirmation(confirm, "create traffic route", dry_run)
 
     # Validate action
     valid_actions = ["allow", "deny", "mark", "shape"]
@@ -973,7 +973,7 @@ async def update_traffic_route(
     Returns:
         Updated traffic route
     """
-    validate_confirmation(confirm, "update traffic route")
+    validate_confirmation(confirm, "update traffic route", dry_run)
 
     # Build update data
     update_data: dict[str, Any] = {}
