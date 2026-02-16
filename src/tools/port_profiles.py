@@ -4,6 +4,7 @@ from typing import Any
 
 from ..api import UniFiClient
 from ..config import Settings
+from ..models.port_profile import PortOverride, PortProfile, PortTableEntry
 from ..utils import (
     DuplicateResourceError,
     ResourceNotFoundError,
@@ -42,14 +43,18 @@ async def list_port_profiles(
         await client.authenticate()
 
         response = await client.get(f"/ea/sites/{site_id}/rest/portconf")
-        profiles: list[dict[str, Any]] = (
+        raw_profiles: list[dict[str, Any]] = (
             response if isinstance(response, list) else response.get("data", [])
         )
 
-        paginated = profiles[offset : offset + limit]
+        paginated = raw_profiles[offset : offset + limit]
+        profiles = [
+            PortProfile.model_validate(p).model_dump(by_alias=True, exclude_none=True)
+            for p in paginated
+        ]
 
-        logger.info(f"Retrieved {len(paginated)} port profiles for site '{site_id}'")
-        return paginated
+        logger.info(f"Retrieved {len(profiles)} port profiles for site '{site_id}'")
+        return profiles
 
 
 async def get_port_profile(
@@ -80,15 +85,16 @@ async def get_port_profile(
         await client.authenticate()
 
         response = await client.get(f"/ea/sites/{site_id}/rest/portconf/{profile_id}")
-        profiles: list[dict[str, Any]] = (
+        raw_profiles: list[dict[str, Any]] = (
             response if isinstance(response, list) else response.get("data", [])
         )
 
-        if not profiles:
+        if not raw_profiles:
             raise ResourceNotFoundError("port_profile", profile_id)
 
+        profile = PortProfile.model_validate(raw_profiles[0])
         logger.info(f"Retrieved port profile '{profile_id}' for site '{site_id}'")
-        return profiles[0]
+        return profile.model_dump(by_alias=True, exclude_none=True)
 
 
 async def create_port_profile(
@@ -511,13 +517,22 @@ async def get_device_port_overrides(
             f"Retrieved port overrides for device '{device_id}' in site '{site_id}'"
         )
 
+        overrides = [
+            PortOverride.model_validate(o).model_dump(exclude_none=True)
+            for o in device.get("port_overrides", [])
+        ]
+        port_table = [
+            PortTableEntry.model_validate(e).model_dump(exclude_none=True)
+            for e in device.get("port_table", [])
+        ]
+
         return {
             "device_id": device.get("_id"),
             "name": device.get("name"),
             "mac": device.get("mac"),
             "model": device.get("model"),
-            "port_overrides": device.get("port_overrides", []),
-            "port_table": device.get("port_table", []),
+            "port_overrides": overrides,
+            "port_table": port_table,
         }
 
 
