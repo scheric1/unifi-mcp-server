@@ -843,6 +843,242 @@ result = await mcp.call_tool("get_site_statistics", {
 }
 ```
 
+### Site Manager API Tools (v0.3.0+)
+
+**Note:** These tools require the Site Manager API to be enabled:
+- Set `UNIFI_SITE_MANAGER_ENABLED=true`
+- Provide your `SITE_MANAGER_API_KEY` from [api.ui.com](https://api.ui.com/)
+- See [Site Manager API Docs](https://developer.ui.com/site-manager-api/gettingstarted) for more details
+
+The Site Manager API (`api.ui.com/v1/`) provides cloud-based multi-site management, ISP metrics monitoring, SD-WAN configuration, and host management capabilities.
+
+#### `get_isp_metrics`
+
+Get ISP performance metrics for a specific site.
+
+**Parameters:**
+
+- `site_id` (string, required): Site identifier
+
+**Returns:**
+ISP metrics including bandwidth, latency, jitter, and packet loss.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("get_isp_metrics", {
+    "site_id": "site-12345"
+})
+```
+
+**Response:**
+
+```json
+{
+  "site_id": "site-12345",
+  "isp_name": "Example ISP",
+  "download_bandwidth_mbps": 500.0,
+  "upload_bandwidth_mbps": 100.0,
+  "latency_ms": 15.5,
+  "jitter_ms": 2.1,
+  "packet_loss_percent": 0.05,
+  "timestamp": "2026-02-16T12:00:00Z"
+}
+```
+
+#### `query_isp_metrics`
+
+Query ISP metrics with optional filters for time range and site.
+
+**Parameters:**
+
+- `site_id` (string, optional): Site identifier (omit for all sites)
+- `start_time` (string, optional): Start time in ISO format (e.g., "2026-02-01T00:00:00Z")
+- `end_time` (string, optional): End time in ISO format
+
+**Returns:**
+List of ISP metrics matching the query.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("query_isp_metrics", {
+    "site_id": "site-12345",
+    "start_time": "2026-02-01T00:00:00Z",
+    "end_time": "2026-02-16T00:00:00Z"
+})
+```
+
+#### `list_sdwan_configs`
+
+List all SD-WAN configurations across your organization.
+
+**Parameters:** None
+
+**Returns:**
+List of SD-WAN configurations with topology type, hub/spoke sites, and status.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("list_sdwan_configs", {})
+```
+
+**Response:**
+
+```json
+[
+  {
+    "config_id": "sdwan-001",
+    "name": "Primary Hub-Spoke",
+    "topology_type": "hub-spoke",
+    "hub_site_ids": ["site-hub"],
+    "spoke_site_ids": ["site-001", "site-002", "site-003"],
+    "failover_enabled": true,
+    "status": "active",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-02-01T00:00:00Z"
+  }
+]
+```
+
+#### `get_sdwan_config`
+
+Get detailed SD-WAN configuration by ID.
+
+**Parameters:**
+
+- `config_id` (string, required): Configuration identifier
+
+**Returns:**
+Detailed SD-WAN configuration including topology, sites, and failover settings.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("get_sdwan_config", {
+    "config_id": "sdwan-001"
+})
+```
+
+#### `get_sdwan_config_status`
+
+Get SD-WAN configuration deployment status.
+
+**Parameters:**
+
+- `config_id` (string, required): Configuration identifier
+
+**Returns:**
+Deployment status including sites deployed, total sites, and any errors.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("get_sdwan_config_status", {
+    "config_id": "sdwan-001"
+})
+```
+
+**Response:**
+
+```json
+{
+  "config_id": "sdwan-001",
+  "deployment_status": "deployed",
+  "sites_deployed": 4,
+  "sites_total": 4,
+  "last_deployment_at": "2026-02-15T10:30:00Z",
+  "error_message": null
+}
+```
+
+#### `list_hosts`
+
+List all managed UniFi hosts/consoles in your organization.
+
+**Parameters:**
+
+- `limit` (integer, optional): Maximum number of hosts to return
+- `offset` (integer, optional): Number of hosts to skip (for pagination)
+
+**Returns:**
+List of managed hosts with connection status and site counts.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("list_hosts", {
+    "limit": 50,
+    "offset": 0
+})
+```
+
+**Response:**
+
+```json
+[
+  {
+    "host_id": "host-001",
+    "hostname": "unifi-controller-1",
+    "ip_address": "192.168.1.10",
+    "mac_address": "00:11:22:33:44:55",
+    "model": "UDM-Pro",
+    "version": "3.2.9",
+    "site_count": 3,
+    "status": "online",
+    "last_seen": "2026-02-16T12:00:00Z"
+  }
+]
+```
+
+#### `get_host`
+
+Get detailed information about a specific managed host.
+
+**Parameters:**
+
+- `host_id` (string, required): Host identifier
+
+**Returns:**
+Detailed host information including model, version, and status.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("get_host", {
+    "host_id": "host-001"
+})
+```
+
+#### `get_version_control`
+
+Get Site Manager API version control information.
+
+**Parameters:** None
+
+**Returns:**
+Version information including current version, latest version, and deprecated versions.
+
+**Example:**
+
+```python
+result = await mcp.call_tool("get_version_control", {})
+```
+
+**Response:**
+
+```json
+{
+  "current_version": "1.0.0",
+  "latest_version": "1.1.0",
+  "deprecated_versions": ["0.9.0", "0.8.0"],
+  "changelog_url": "https://developer.ui.com/site-manager-api/changelog",
+  "upgrade_recommended": true,
+  "min_supported_version": "1.0.0"
+}
+```
+
 ## Phase 4: Mutating Tools
 
 All Phase 4 tools modify UniFi configuration and require safety mechanisms.
