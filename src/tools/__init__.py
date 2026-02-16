@@ -8,6 +8,7 @@ from . import (
     firewall,
     network_config,
     networks,
+    port_profiles,
     sites,
 )
 
@@ -22,4 +23,5 @@ __all__ = [
     "network_config",
     "device_control",
     "client_management",
+    "port_profiles",
 ]

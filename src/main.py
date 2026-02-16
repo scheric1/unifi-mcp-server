@@ -23,6 +23,7 @@ from .tools import firewall_zones as firewall_zones_tools
 from .tools import network_config as network_config_tools
 from .tools import networks as networks_tools
 from .tools import port_forwarding as port_fwd_tools
+from .tools import port_profiles as port_profile_tools
 from .tools import qos as qos_tools
 from .tools import radius as radius_tools
 from .tools import reference_data as ref_tools
@@ -290,16 +291,16 @@ async def create_firewall_rule(
     site_id: str,
     name: str,
     action: str,
-    source: str | None = None,
-    destination: str | None = None,
-    protocol: str | None = None,
+    src_address: str | None = None,
+    dst_address: str | None = None,
+    protocol: str = "all",
     port: int | None = None,
     enabled: bool = True,
     ruleset: str = "WAN_IN",
     rule_index: int = 2000,
-    src_networkconf_id: str | None = None,
+    src_networkconf_id: str = "",
     src_networkconf_type: str = "NETv4",
-    dst_networkconf_id: str | None = None,
+    dst_networkconf_id: str = "",
     dst_networkconf_type: str = "NETv4",
     state_established: bool = False,
     state_related: bool = False,
@@ -309,14 +310,18 @@ async def create_firewall_rule(
     confirm: bool | str = False,
     dry_run: bool | str = False,
 ) -> dict:
-    """Create a new firewall rule (requires confirm=True)."""
+    """Create a new firewall rule (requires confirm=True).
+
+    Use src_networkconf_id/dst_networkconf_id for inter-VLAN rules (pass network config ID).
+    Use src_address/dst_address for IP-based rules (CIDR or single IP).
+    """
     return await firewall_tools.create_firewall_rule(
         site_id=site_id,
         name=name,
         action=action,
         settings=settings,
-        source=source,
-        destination=destination,
+        src_address=src_address,
+        dst_address=dst_address,
         protocol=protocol,
         port=port,
         enabled=enabled,
@@ -342,8 +347,8 @@ async def update_firewall_rule(
     rule_id: str,
     name: str | None = None,
     action: str | None = None,
-    source: str | None = None,
-    destination: str | None = None,
+    src_address: str | None = None,
+    dst_address: str | None = None,
     protocol: str | None = None,
     port: int | None = None,
     enabled: bool | None = None,
@@ -352,18 +357,18 @@ async def update_firewall_rule(
 ) -> dict:
     """Update an existing firewall rule (requires confirm=True)."""
     return await firewall_tools.update_firewall_rule(
-        site_id,
-        rule_id,
-        settings,
-        name,
-        action,
-        source,
-        destination,
-        protocol,
-        port,
-        enabled,
-        confirm,
-        dry_run,
+        site_id=site_id,
+        rule_id=rule_id,
+        settings=settings,
+        name=name,
+        action=action,
+        src_address=src_address,
+        dst_address=dst_address,
+        protocol=protocol,
+        port=port,
+        enabled=enabled,
+        confirm=confirm,
+        dry_run=dry_run,
     )
 
 
@@ -2108,6 +2113,145 @@ async def get_topology_statistics(
         Dictionary with topology statistics
     """
     return await topology_tools.get_topology_statistics(site_id, settings)
+
+
+# Port Profile & Device Port Override Tools
+@mcp.tool()
+async def list_port_profiles(
+    site_id: str, limit: int | None = None, offset: int | None = None
+) -> list[dict]:
+    """List all switch port profiles in a site."""
+    return await port_profile_tools.list_port_profiles(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def get_port_profile(site_id: str, profile_id: str) -> dict:
+    """Get details for a specific port profile."""
+    return await port_profile_tools.get_port_profile(site_id, profile_id, settings)
+
+
+@mcp.tool()
+async def create_port_profile(
+    site_id: str,
+    name: str,
+    forward: str,
+    native_networkconf_id: str | None = None,
+    excluded_networkconf_ids: list[str] | None = None,
+    tagged_networkconf_ids: list[str] | None = None,
+    poe_mode: str | None = None,
+    speed: int | None = None,
+    full_duplex: bool | None = None,
+    autoneg: bool | None = None,
+    dot1x_ctrl: str | None = None,
+    lldpmed_enabled: bool | None = None,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Create a new switch port profile (requires confirm=True)."""
+    return await port_profile_tools.create_port_profile(
+        site_id=site_id,
+        name=name,
+        forward=forward,
+        settings=settings,
+        native_networkconf_id=native_networkconf_id,
+        excluded_networkconf_ids=excluded_networkconf_ids,
+        tagged_networkconf_ids=tagged_networkconf_ids,
+        poe_mode=poe_mode,
+        speed=speed,
+        full_duplex=full_duplex,
+        autoneg=autoneg,
+        dot1x_ctrl=dot1x_ctrl,
+        lldpmed_enabled=lldpmed_enabled,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+async def update_port_profile(
+    site_id: str,
+    profile_id: str,
+    name: str | None = None,
+    forward: str | None = None,
+    native_networkconf_id: str | None = None,
+    excluded_networkconf_ids: list[str] | None = None,
+    tagged_networkconf_ids: list[str] | None = None,
+    poe_mode: str | None = None,
+    speed: int | None = None,
+    full_duplex: bool | None = None,
+    autoneg: bool | None = None,
+    dot1x_ctrl: str | None = None,
+    lldpmed_enabled: bool | None = None,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Update an existing port profile (requires confirm=True)."""
+    return await port_profile_tools.update_port_profile(
+        site_id=site_id,
+        profile_id=profile_id,
+        settings=settings,
+        name=name,
+        forward=forward,
+        native_networkconf_id=native_networkconf_id,
+        excluded_networkconf_ids=excluded_networkconf_ids,
+        tagged_networkconf_ids=tagged_networkconf_ids,
+        poe_mode=poe_mode,
+        speed=speed,
+        full_duplex=full_duplex,
+        autoneg=autoneg,
+        dot1x_ctrl=dot1x_ctrl,
+        lldpmed_enabled=lldpmed_enabled,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_port_profile(
+    site_id: str, profile_id: str, confirm: bool | str = False, dry_run: bool | str = False
+) -> dict:
+    """Delete a port profile (requires confirm=True)."""
+    return await port_profile_tools.delete_port_profile(
+        site_id, profile_id, settings, confirm, dry_run
+    )
+
+
+@mcp.tool()
+async def get_device_port_overrides(site_id: str, device_id: str) -> dict:
+    """Get port overrides and port table for a device."""
+    return await port_profile_tools.get_device_port_overrides(site_id, device_id, settings)
+
+
+@mcp.tool()
+async def set_device_port_overrides(
+    site_id: str,
+    device_id: str,
+    port_overrides: list[dict],
+    merge: bool = True,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Set port overrides on a device (requires confirm=True).
+
+    Each override must include port_idx and portconf_id.
+    When merge=True (default), merges with existing overrides by port_idx.
+    When merge=False, replaces all overrides.
+    """
+    return await port_profile_tools.set_device_port_overrides(
+        site_id=site_id,
+        device_id=device_id,
+        port_overrides=port_overrides,
+        settings=settings,
+        merge=merge,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+async def get_device_by_mac(site_id: str, mac: str) -> dict:
+    """Get a device by its MAC address."""
+    return await port_profile_tools.get_device_by_mac(site_id, mac, settings)
 
 
 # VPN Management Tools
