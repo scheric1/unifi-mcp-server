@@ -41,9 +41,7 @@ def require_site_manager(func):
     @wraps(func)
     async def wrapper(settings: Settings, *args, **kwargs):
         if not settings.site_manager_enabled:
-            raise ValueError(
-                "Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true"
-            )
+            raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
         return await func(settings, *args, **kwargs)
 
     return wrapper
@@ -94,8 +92,8 @@ async def get_internet_health(settings: Settings, site_id: str | None = None) ->
 
         return InternetHealthMetrics(**data).model_dump()  # type: ignore[no-any-return]
 
-@require_site_manager
 
+@require_site_manager
 async def get_site_health_summary(
     settings: Settings, site_id: str | None = None
 ) -> dict[str, Any] | list[dict[str, Any]]:

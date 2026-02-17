@@ -19,6 +19,7 @@ from src.tools.site_manager import (
 @pytest.fixture
 def mock_settings():
     """Create mock settings for testing."""
+
     # Use a simple object with real attributes instead of MagicMock
     # to avoid MagicMock comparison issues with httpx timeout handling
     class MockSettings:
@@ -36,6 +37,7 @@ def mock_settings():
 @pytest.fixture
 def mock_settings_disabled():
     """Create mock settings with site manager disabled."""
+
     # Use a simple object with real attributes instead of MagicMock
     class MockSettings:
         log_level = "INFO"
