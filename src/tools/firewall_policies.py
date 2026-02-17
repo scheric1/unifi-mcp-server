@@ -131,6 +131,13 @@ async def create_firewall_policy(
     destination_zone_id: str | None = None,
     source_matching_target: str = "ANY",
     destination_matching_target: str = "ANY",
+    source_ips: list[str] | None = None,
+    destination_ips: list[str] | None = None,
+    source_port: str | None = None,
+    destination_port: str | None = None,
+    source_client_macs: list[str] | None = None,
+    source_network_ids: list[str] | None = None,
+    destination_network_ids: list[str] | None = None,
     protocol: str = "all",
     enabled: bool = True,
     description: str | None = None,
@@ -151,6 +158,13 @@ async def create_firewall_policy(
         destination_zone_id: Destination zone ID
         source_matching_target: ANY, IP, NETWORK, REGION, or CLIENT
         destination_matching_target: ANY, IP, NETWORK, or REGION
+        source_ips: Source IP addresses (when source_matching_target is IP)
+        destination_ips: Destination IP addresses (when destination_matching_target is IP)
+        source_port: Source port(s) e.g. '53', '80,443', '1000-2000'
+        destination_port: Destination port(s) e.g. '445', '80,443', '1000-2000'
+        source_client_macs: Source MAC addresses (when source_matching_target is CLIENT)
+        source_network_ids: Source network IDs (when source_matching_target is NETWORK)
+        destination_network_ids: Destination network IDs (when destination_matching_target is NETWORK)
         protocol: all, tcp, udp, tcp_udp, or icmpv6
         enabled: Whether policy is active
         description: Optional description
@@ -171,13 +185,42 @@ async def create_firewall_policy(
     if action_upper not in valid_actions:
         raise ValueError(f"Invalid action '{action}'. Must be one of: {valid_actions}")
 
+    # Auto-detect matching targets from provided parameters
+    if source_ips and source_matching_target == "ANY":
+        source_matching_target = "IP"
+    if destination_ips and destination_matching_target == "ANY":
+        destination_matching_target = "IP"
+    if source_client_macs and source_matching_target == "ANY":
+        source_matching_target = "CLIENT"
+    if source_network_ids and source_matching_target == "ANY":
+        source_matching_target = "NETWORK"
+    if destination_network_ids and destination_matching_target == "ANY":
+        destination_matching_target = "NETWORK"
+
     source_config: dict[str, Any] = {"matching_target": source_matching_target.upper()}
     if source_zone_id:
         source_config["zone_id"] = source_zone_id
+    if source_ips:
+        source_config["ips"] = source_ips
+    if source_client_macs:
+        source_config["client_macs"] = source_client_macs
+        source_config["match_mac"] = True
+    if source_network_ids:
+        source_config["network_ids"] = source_network_ids
+    if source_port:
+        source_config["port_matching_type"] = "SPECIFIC"
+        source_config["port"] = source_port
 
     destination_config: dict[str, Any] = {"matching_target": destination_matching_target.upper()}
     if destination_zone_id:
         destination_config["zone_id"] = destination_zone_id
+    if destination_ips:
+        destination_config["ips"] = destination_ips
+    if destination_network_ids:
+        destination_config["network_ids"] = destination_network_ids
+    if destination_port:
+        destination_config["port_matching_type"] = "SPECIFIC"
+        destination_config["port"] = destination_port
 
     policy_data = FirewallPolicyCreate(
         name=name,
