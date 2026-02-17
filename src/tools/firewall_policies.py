@@ -222,6 +222,16 @@ async def create_firewall_policy(
         destination_config["port_matching_type"] = "SPECIFIC"
         destination_config["port"] = destination_port
 
+    # UniFi API requires zone_id on both source and destination
+    if "zone_id" not in source_config:
+        raise ValueError(
+            "source_zone_id is required. Use list_firewall_zones to find zone IDs."
+        )
+    if "zone_id" not in destination_config:
+        raise ValueError(
+            "destination_zone_id is required. Use list_firewall_zones to find zone IDs."
+        )
+
     policy_data = FirewallPolicyCreate(
         name=name,
         action=action_upper,
@@ -230,6 +240,7 @@ async def create_firewall_policy(
         source=source_config,
         destination=destination_config,
         description=description,
+        schedule={"mode": "ALWAYS"},
     )
 
     parameters = {

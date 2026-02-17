@@ -14,6 +14,7 @@ class MatchingTarget(str, Enum):
     NETWORK = "NETWORK"
     REGION = "REGION"
     CLIENT = "CLIENT"
+    MAC = "MAC"
 
 
 class ConnectionStateType(str, Enum):
