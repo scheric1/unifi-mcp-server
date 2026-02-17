@@ -2,8 +2,12 @@
 
 import os
 
-from agnost import config as agnost_config
-from agnost import track
+try:
+    from agnost import config as agnost_config
+    from agnost import track
+except ImportError:
+    agnost_config = None
+    track = None
 from fastmcp import FastMCP
 
 from .config import Settings
@@ -48,7 +52,7 @@ logger = get_logger(__name__, settings.log_level)
 mcp = FastMCP("UniFi MCP Server")
 
 # Configure agnost tracking if enabled
-if os.getenv("AGNOST_ENABLED", "false").lower() in ("true", "1", "yes"):
+if agnost_config and track and os.getenv("AGNOST_ENABLED", "false").lower() in ("true", "1", "yes"):
     agnost_org_id = os.getenv("AGNOST_ORG_ID")
     if agnost_org_id:
         try:
