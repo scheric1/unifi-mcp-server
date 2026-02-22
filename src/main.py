@@ -22,9 +22,9 @@ from .tools import device_control as device_control_tools
 from .tools import devices as devices_tools
 from .tools import dpi as dpi_tools
 from .tools import dpi_tools as dpi_new_tools
+from .tools import firewall as firewall_tools
 from .tools import firewall_policies as firewall_policy_tools
 from .tools import firewall_zones as firewall_zones_tools
-# Note: legacy firewall (rest/firewallrule) intentionally not imported — replaced by v2 policies
 from .tools import network_config as network_config_tools
 from .tools import networks as networks_tools
 from .tools import port_forwarding as port_fwd_tools
@@ -284,7 +284,112 @@ async def get_site_statistics(site_id: str) -> dict:
     return await sites_tools.get_site_statistics(site_id, settings)
 
 
-# Firewall Policy Tools (v2 API — replaces legacy firewall rules)
+# Firewall Rule Tools (v1 API — legacy iptables-style rules)
+@mcp.tool()
+async def list_firewall_rules(site_id: str, limit: int | None = None, offset: int | None = None) -> list[dict]:
+    """List all firewall rules for a site."""
+    return await firewall_tools.list_firewall_rules(site_id, settings, limit, offset)
+
+
+@mcp.tool()
+async def create_firewall_rule(
+    site_id: str,
+    name: str,
+    action: str,
+    src_address: str | None = None,
+    dst_address: str | None = None,
+    protocol: str | None = None,
+    port: int | None = None,
+    enabled: bool = True,
+    ruleset: str = "WAN_IN",
+    rule_index: int = 2000,
+    src_networkconf_id: str | None = None,
+    dst_networkconf_id: str | None = None,
+    state_established: bool = False,
+    state_related: bool = False,
+    state_new: bool = False,
+    state_invalid: bool = False,
+    logging: bool = False,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Create a new firewall rule (requires confirm=True).
+
+    Args: action (accept/drop/reject), ruleset (WAN_IN, WAN_OUT, LAN_IN, LAN_OUT, etc.)
+    """
+    return await firewall_tools.create_firewall_rule(
+        site_id=site_id,
+        name=name,
+        action=action,
+        settings=settings,
+        src_address=src_address,
+        dst_address=dst_address,
+        protocol=protocol,
+        port=port,
+        enabled=enabled,
+        ruleset=ruleset,
+        rule_index=rule_index,
+        src_networkconf_id=src_networkconf_id,
+        dst_networkconf_id=dst_networkconf_id,
+        state_established=state_established,
+        state_related=state_related,
+        state_new=state_new,
+        state_invalid=state_invalid,
+        logging=logging,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+async def update_firewall_rule(
+    site_id: str,
+    rule_id: str,
+    name: str | None = None,
+    action: str | None = None,
+    src_address: str | None = None,
+    dst_address: str | None = None,
+    protocol: str | None = None,
+    port: int | None = None,
+    enabled: bool | None = None,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Update an existing firewall rule (requires confirm=True)."""
+    return await firewall_tools.update_firewall_rule(
+        site_id=site_id,
+        rule_id=rule_id,
+        settings=settings,
+        name=name,
+        action=action,
+        src_address=src_address,
+        dst_address=dst_address,
+        protocol=protocol,
+        port=port,
+        enabled=enabled,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+async def delete_firewall_rule(
+    site_id: str,
+    rule_id: str,
+    confirm: bool | str = False,
+    dry_run: bool | str = False,
+) -> dict:
+    """Delete a firewall rule (requires confirm=True)."""
+    return await firewall_tools.delete_firewall_rule(
+        site_id=site_id,
+        rule_id=rule_id,
+        settings=settings,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+
+
+# Firewall Policy Tools (v2 API — zone-based policies, read-only)
 @mcp.tool()
 async def list_firewall_policies(site_id: str) -> list[dict]:
     """List all firewall policies (Traffic & Firewall Rules) for a site. Requires local API."""
@@ -295,98 +400,6 @@ async def list_firewall_policies(site_id: str) -> list[dict]:
 async def get_firewall_policy(site_id: str, policy_id: str) -> dict:
     """Get a specific firewall policy by ID. Requires local API."""
     return await firewall_policy_tools.get_firewall_policy(policy_id, site_id, settings)
-
-
-@mcp.tool()
-async def create_firewall_policy(
-    site_id: str,
-    name: str,
-    action: str,
-    source_zone_id: str | None = None,
-    destination_zone_id: str | None = None,
-    source_matching_target: str = "ANY",
-    destination_matching_target: str = "ANY",
-    source_ips: list[str] | None = None,
-    destination_ips: list[str] | None = None,
-    source_port: str | None = None,
-    destination_port: str | None = None,
-    source_client_macs: list[str] | None = None,
-    source_network_ids: list[str] | None = None,
-    destination_network_ids: list[str] | None = None,
-    protocol: str = "all",
-    enabled: bool = True,
-    description: str | None = None,
-    confirm: bool | str = False,
-    dry_run: bool | str = False,
-) -> dict:
-    """Create a new firewall policy (requires confirm=True). Requires local API.
-
-    Supports IP, NETWORK, CLIENT, and REGION matching for source/destination.
-    When source_ips or destination_ips are provided, matching_target is auto-set to IP.
-    Port format: single '445', comma-separated '80,443', or range '1000-2000'.
-    """
-    return await firewall_policy_tools.create_firewall_policy(
-        name=name,
-        action=action,
-        site_id=site_id,
-        settings=settings,
-        source_zone_id=source_zone_id,
-        destination_zone_id=destination_zone_id,
-        source_matching_target=source_matching_target,
-        destination_matching_target=destination_matching_target,
-        source_ips=source_ips,
-        destination_ips=destination_ips,
-        source_port=source_port,
-        destination_port=destination_port,
-        source_client_macs=source_client_macs,
-        source_network_ids=source_network_ids,
-        destination_network_ids=destination_network_ids,
-        protocol=protocol,
-        enabled=enabled,
-        description=description,
-        confirm=confirm,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool()
-async def update_firewall_policy(
-    site_id: str,
-    policy_id: str,
-    name: str | None = None,
-    action: str | None = None,
-    enabled: bool | None = None,
-    confirm: bool | str = False,
-    dry_run: bool | str = False,
-) -> dict:
-    """Update an existing firewall policy (requires confirm=True). Requires local API."""
-    return await firewall_policy_tools.update_firewall_policy(
-        policy_id=policy_id,
-        site_id=site_id,
-        settings=settings,
-        name=name,
-        action=action,
-        enabled=enabled,
-        confirm=confirm,
-        dry_run=dry_run,
-    )
-
-
-@mcp.tool()
-async def delete_firewall_policy(
-    site_id: str,
-    policy_id: str,
-    confirm: bool | str = False,
-    dry_run: bool | str = False,
-) -> dict:
-    """Delete a firewall policy (requires confirm=True). Requires local API."""
-    return await firewall_policy_tools.delete_firewall_policy(
-        policy_id=policy_id,
-        site_id=site_id,
-        settings=settings,
-        confirm=confirm,
-        dry_run=dry_run,
-    )
 
 
 # Backup and Restore Tools (Phase 4)
