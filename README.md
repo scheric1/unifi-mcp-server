@@ -12,7 +12,7 @@ A Model Context Protocol (MCP) server that exposes the UniFi Network Controller 
 
 ## 📋 Version Notice
 
-**Current Stable Release**: v0.2.4 (2026-02-19) 🎉
+**Current Stable Release**: 0.2.4 (2026-02-19) 🎉
 
 **Installation:**
 
@@ -206,7 +206,7 @@ After installation, the `unifi-mcp-server` command will be available globally.
 
 ```bash
 # Pull the latest release
-docker pull ghcr.io/enuno/unifi-mcp-server:0.2.0
+docker pull ghcr.io/enuno/unifi-mcp-server:0.2.4
 
 # Multi-architecture support: amd64, arm64, arm/v7
 ```
