@@ -7,9 +7,9 @@ import pytest
 import src.tools.port_forwarding as pf_module
 from src.tools.port_forwarding import (
     create_port_forward,
-    update_port_forward,
     delete_port_forward,
     list_port_forwards,
+    update_port_forward,
 )
 from src.utils.exceptions import ResourceNotFoundError, ValidationError
 
@@ -401,7 +401,7 @@ async def test_update_port_forward_multiple_fields(mock_settings):
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
     with patch.object(pf_module, "UniFiClient", return_value=mock_client):
-        result = await update_port_forward(
+        await update_port_forward(
             site_id="default",
             rule_id="pf1",
             settings=mock_settings,

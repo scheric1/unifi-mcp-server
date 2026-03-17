@@ -22,7 +22,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.14.5",
+    "fastmcp>=3.0.0",
     "httpx>=0.28.1",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.0.0",
@@ -32,6 +32,9 @@ dependencies = [
     "mcp[cli]>=1.26.0",
     "cryptography>=46.0.5",
     "urllib3>=2.3.0",
+    # Transitive dependency lower bounds for security (Dependabot alerts)
+    "authlib>=1.6.9",
+    "PyJWT>=2.12.0",
 ]
 
 [project.optional-dependencies]
@@ -40,13 +43,14 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
     "pytest-mock>=3.12.0",
-    "black>=24.0.0",
+    "black>=26.3.1",
     "ruff>=0.1.0",
     "flake8>=7.0.0",
     "mypy>=1.8.0",
     "isort>=5.13.0",
     "pre-commit>=3.6.0",
     "safety>=3.0.0",
+    "nltk>=3.9.3",
     "bandit>=1.7.0",
     "types-PyYAML>=6.0.0",
     "types-requests>=2.31.0",
@@ -206,7 +210,3 @@ ignore = [
 "tests/*" = ["B011"]
 
 # UV Package Manager Configuration
-# Note: diskcache (vulnerable to CVE-2025-69872) is an optional dependency of
-# py-key-value-aio[disk] pulled in by FastMCP. We don't use the disk caching feature.
-# UV doesn't currently support excluding optional extras, so we document this as a
-# known non-impacting vulnerability. See SECURITY.md for details.

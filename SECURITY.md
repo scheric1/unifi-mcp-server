@@ -487,30 +487,12 @@ We appreciate the security research community and recognize contributors who res
 
 ---
 
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-03-17
 
 Thank you for helping keep UniFi MCP Server and its users safe!
 
 ## Known Dependabot Alerts (Non-Impacting)
 
-### CVE-2025-69872: diskcache Unsafe Deserialization
-
-**Status:** ✅ Not Vulnerable
-**Severity:** Medium (CVSS 4.0: 5.2)
-**Package:** diskcache <= 5.6.3
-**Date:** 2026-02-11
-
-**Why Not Vulnerable:**
-
-- diskcache is an unused optional dependency (py-key-value-aio[disk] via FastMCP)
-- We use Redis for caching, not disk-based caching
-- Vulnerable code path never executed
-- No cache directory created or accessed
-
-**References:**
-
-- [CVE-2025-69872](https://nvd.nist.gov/vuln/detail/CVE-2025-69872)
-- [GHSA-w8v5-vhqr-4h9v](https://github.com/advisories/GHSA-w8v5-vhqr-4h9v)
-
-**Dependabot Alert:** Dismissed with justification.
-**Reviewed:** 2026-02-16
+None. As of 2026-03-17, all known vulnerabilities have been resolved by upgrading
+dependencies (authlib, fastmcp, PyJWT, black, nltk) and diskcache has been removed
+from the dependency tree entirely (fastmcp 3.x no longer depends on it).

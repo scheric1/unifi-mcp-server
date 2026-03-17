@@ -28,12 +28,7 @@ from .firewall_policy import (
 from .firewall_zone import FirewallZone
 from .network import Network
 from .port_profile import PortOverride, PortProfile, PortTableEntry
-from .qos_profile import (
-    MatchCriteria,
-    RouteAction,
-    RouteSchedule,
-    TrafficRoute,
-)
+from .qos_profile import MatchCriteria, RouteAction, RouteSchedule, TrafficRoute
 from .radius import RADIUSProfile
 from .reference_data import DeviceTag
 from .site import Site
