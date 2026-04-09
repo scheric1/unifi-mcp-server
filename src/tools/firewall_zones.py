@@ -256,7 +256,7 @@ async def assign_network_to_zone(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
         zone_data = zone_response.get("data", {})
-        current_networks = zone_data.get("networks", [])
+        current_networks = zone_data.get("networkIds", [])
 
         if network_id in current_networks:
             logger.info(sanitize_log_message(f"Network {network_id} already assigned to zone {zone_id}"))
@@ -268,7 +268,7 @@ async def assign_network_to_zone(
 
         updated_networks = list(current_networks) + [network_id]
 
-        payload = {"networks": updated_networks}
+        payload = {"networkIds": updated_networks}
 
         if dry_run:
             logger.info(sanitize_log_message(f"[DRY RUN] Would assign network {network_id} to zone {zone_id}"))
@@ -321,7 +321,7 @@ async def get_zone_networks(site_id: str, zone_id: str, settings: Settings) -> l
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
         zone_data = response.get("data", {})
-        network_ids = zone_data.get("networks", [])
+        network_ids = zone_data.get("networkIds", [])
 
         # Fetch network details for each network ID
         networks = []
@@ -445,7 +445,7 @@ async def unassign_network_from_zone(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
         zone_data = zone_response.get("data", {})
-        current_networks = zone_data.get("networks", [])
+        current_networks = zone_data.get("networkIds", [])
 
         if network_id not in current_networks:
             raise ValueError(f"Network {network_id} is not assigned to zone {zone_id}")
@@ -453,7 +453,7 @@ async def unassign_network_from_zone(
         # Remove network from list
         updated_networks = [nid for nid in current_networks if nid != network_id]
 
-        payload = {"networks": updated_networks}
+        payload = {"networkIds": updated_networks}
 
         if dry_run:
             logger.info(sanitize_log_message(f"[DRY RUN] Would remove network {network_id} from zone {zone_id}"))
