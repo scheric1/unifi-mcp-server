@@ -308,7 +308,7 @@ async def update_port_forward(
                 updated_rule: dict[str, Any] = response[0]
             else:
                 data_list = response.get("data", [{}])
-                updated_rule = data_list[0] if isinstance(data_list, list) else {}
+                updated_rule = data_list[0] if isinstance(data_list, list) else data_list
 
             logger.info(sanitize_log_message(f"Updated port forwarding rule '{rule_id}' in site '{site_id}'"))
             log_audit(

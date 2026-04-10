@@ -76,7 +76,7 @@ async def get_traffic_flows(
             response = await client.get(
                 f"/integration/v1/sites/{site_id}/traffic/flows", params=params
             )
-            data = response.get("data", [])
+            data = response if isinstance(response, list) else response.get("data", [])
         except Exception as e:
             logger.warning(sanitize_log_message(f"Traffic flows endpoint not available: {e}"))
             return []
@@ -106,7 +106,8 @@ async def get_flow_statistics(site_id: str, settings: Settings, time_range: str 
                 f"/integration/v1/sites/{site_id}/traffic/flows/statistics",
                 params={"time_range": time_range},
             )
-            data = response.get("data", response)
+            resp_data = response if isinstance(response, list) else response.get("data", [response])
+            data = resp_data[0] if resp_data else {}
         except Exception as e:
             logger.warning(sanitize_log_message(f"Flow statistics endpoint not available: {e}"))
             # Return empty statistics
@@ -161,7 +162,8 @@ async def get_traffic_flow_details(site_id: str, flow_id: str, settings: Setting
 
         try:
             response = await client.get(f"/integration/v1/sites/{site_id}/traffic/flows/{flow_id}")
-            data = response.get("data", response)
+            resp_data = response if isinstance(response, list) else response.get("data", [response])
+            data = resp_data[0] if resp_data else {}
         except Exception as e:
             logger.warning(sanitize_log_message(f"Traffic flow details endpoint not available: {e}"))
             raise
@@ -199,7 +201,7 @@ async def get_top_flows(
                 f"/integration/v1/sites/{site_id}/traffic/flows/top",
                 params={"limit": limit, "time_range": time_range, "sort_by": sort_by},
             )
-            data = response.get("data", [])
+            data = response if isinstance(response, list) else response.get("data", [])
         except Exception:
             # Fallback: get all flows and sort manually
             logger.info("Top flows endpoint not available, fetching all flows")
@@ -246,7 +248,7 @@ async def get_flow_risks(
             response = await client.get(
                 f"/integration/v1/sites/{site_id}/traffic/flows/risks", params=params
             )
-            data = response.get("data", [])
+            data = response if isinstance(response, list) else response.get("data", [])
         except Exception:
             logger.warning("Flow risks endpoint not available")
             return []
@@ -282,7 +284,7 @@ async def get_flow_trends(
                 f"/integration/v1/sites/{site_id}/traffic/flows/trends",
                 params={"time_range": time_range, "interval": interval},
             )
-            data = response.get("data", [])
+            data = response if isinstance(response, list) else response.get("data", [])
         except Exception:
             logger.warning("Flow trends endpoint not available")
             return []
@@ -325,7 +327,7 @@ async def filter_traffic_flows(
             response = await client.get(
                 f"/integration/v1/sites/{site_id}/traffic/flows", params=params
             )
-            data = response.get("data", [])
+            data = response if isinstance(response, list) else response.get("data", [])
         except Exception:
             logger.warning("Filtered flows endpoint not available, using basic filtering")
             # Fallback to basic filtering
@@ -379,7 +381,7 @@ async def stream_traffic_flows(
                 response = await client.get(
                     f"/integration/v1/sites/{site_id}/traffic/flows", params=params
                 )
-                data = response.get("data", [])
+                data = response if isinstance(response, list) else response.get("data", [])
 
                 current_time = datetime.now(timezone.utc).isoformat()
 

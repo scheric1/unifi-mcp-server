@@ -210,7 +210,8 @@ async def create_wlan(
             await client.authenticate()
 
             response = await client.post(f"/ea/sites/{site_id}/rest/wlanconf", json_data=wlan_data)
-            created_wlan: dict[str, Any] = response.get("data", [{}])[0]
+            resp_data = response if isinstance(response, list) else response.get("data", [{}])
+            created_wlan: dict[str, Any] = resp_data[0] if resp_data else {}
 
             logger.info(sanitize_log_message(f"Created WLAN '{name}' in site '{site_id}'"))
             log_audit(
@@ -335,7 +336,9 @@ async def update_wlan(
 
             # Get existing WLAN
             response = await client.get(f"/ea/sites/{site_id}/rest/wlanconf")
-            wlans_data: list[dict[str, Any]] = response.get("data", [])
+            wlans_data: list[dict[str, Any]] = (
+                response if isinstance(response, list) else response.get("data", [])
+            )
 
             existing_wlan = None
             for wlan in wlans_data:
@@ -372,7 +375,8 @@ async def update_wlan(
             response = await client.put(
                 f"/ea/sites/{site_id}/rest/wlanconf/{wlan_id}", json_data=update_data
             )
-            updated_wlan: dict[str, Any] = response.get("data", [{}])[0]
+            resp_data = response if isinstance(response, list) else response.get("data", [{}])
+            updated_wlan: dict[str, Any] = resp_data[0] if resp_data else {}
 
             logger.info(sanitize_log_message(f"Updated WLAN '{wlan_id}' in site '{site_id}'"))
             log_audit(
@@ -441,7 +445,9 @@ async def delete_wlan(
 
             # Verify WLAN exists before deleting
             response = await client.get(f"/ea/sites/{site_id}/rest/wlanconf")
-            wlans_data: list[dict[str, Any]] = response.get("data", [])
+            wlans_data: list[dict[str, Any]] = (
+                response if isinstance(response, list) else response.get("data", [])
+            )
 
             wlan_exists = any(wlan.get("_id") == wlan_id for wlan in wlans_data)
             if not wlan_exists:
@@ -493,11 +499,15 @@ async def get_wlan_statistics(
 
         # Get WLANs
         wlans_response = await client.get(f"/ea/sites/{site_id}/rest/wlanconf")
-        wlans_data = wlans_response.get("data", [])
+        wlans_data = (
+            wlans_response if isinstance(wlans_response, list) else wlans_response.get("data", [])
+        )
 
         # Get active clients
         clients_response = await client.get(f"/ea/sites/{site_id}/sta")
-        clients_data = clients_response.get("data", [])
+        clients_data = (
+            clients_response if isinstance(clients_response, list) else clients_response.get("data", [])
+        )
 
         # Calculate statistics per WLAN
         wlan_stats = []

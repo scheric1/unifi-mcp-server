@@ -33,7 +33,7 @@ async def list_vpn_tunnels(
         await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/vpn/site-to-site-tunnels")
-        tunnels_data: list[dict[str, Any]] = response.get("data", [])
+        tunnels_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
         # Apply pagination
         paginated = tunnels_data[offset : offset + limit]
@@ -67,7 +67,7 @@ async def list_vpn_servers(
         await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/vpn/servers")
-        servers_data: list[dict[str, Any]] = response.get("data", [])
+        servers_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
         # Apply pagination
         paginated = servers_data[offset : offset + limit]

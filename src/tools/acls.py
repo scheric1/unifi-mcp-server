@@ -44,7 +44,7 @@ async def list_acl_rules(
             params["filter"] = filter_expr
 
         response = await client.get(f"/integration/v1/sites/{site_id}/acls", params=params)
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [ACLRule(**rule).model_dump() for rule in data]
 
@@ -67,7 +67,8 @@ async def get_acl_rule(site_id: str, acl_rule_id: str, settings: Settings) -> di
             await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/acls/{acl_rule_id}")
-        data = response.get("data", response)
+        resp_data = response if isinstance(response, list) else response.get("data", [response])
+        data = resp_data[0] if resp_data else {}
 
         return ACLRule(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -159,7 +160,8 @@ async def create_acl_rule(
             return {"dry_run": True, "payload": payload}
 
         response = await client.post(f"/integration/v1/sites/{site_id}/acls", json_data=payload)
-        data = response.get("data", response)
+        resp_data = response if isinstance(response, list) else response.get("data", [response])
+        data = resp_data[0] if resp_data else {}
 
         # Audit the action
         await audit_action(
@@ -267,7 +269,8 @@ async def update_acl_rule(
         response = await client.put(
             f"/integration/v1/sites/{site_id}/acls/{acl_rule_id}", json_data=payload
         )
-        data = response.get("data", response)
+        resp_data = response if isinstance(response, list) else response.get("data", [response])
+        data = resp_data[0] if resp_data else {}
 
         # Audit the action
         await audit_action(

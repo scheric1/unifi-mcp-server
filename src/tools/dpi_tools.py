@@ -26,7 +26,7 @@ async def list_dpi_categories(settings: Settings) -> list[dict]:
             await client.authenticate()
 
         response = await client.get("/integration/v1/dpi/categories")
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [DPICategory(**category).model_dump() for category in data]
 
@@ -63,7 +63,7 @@ async def list_dpi_applications(
             params["filter"] = filter_expr
 
         response = await client.get("/integration/v1/dpi/applications", params=params)
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [DPIApplication(**app).model_dump() for app in data]
 
@@ -84,6 +84,6 @@ async def list_countries(settings: Settings) -> list[dict]:
             await client.authenticate()
 
         response = await client.get("/integration/v1/countries")
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [Country(**country).model_dump() for country in data]

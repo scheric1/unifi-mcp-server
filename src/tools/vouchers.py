@@ -44,7 +44,7 @@ async def list_vouchers(
             params["filter"] = filter_expr
 
         response = await client.get(f"/integration/v1/sites/{site_id}/vouchers", params=params)
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [Voucher(**voucher).model_dump() for voucher in data]
 
@@ -67,7 +67,8 @@ async def get_voucher(site_id: str, voucher_id: str, settings: Settings) -> dict
             await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/vouchers/{voucher_id}")
-        data = response.get("data", response)
+        resp_data = response if isinstance(response, list) else response.get("data", [response])
+        data = resp_data[0] if resp_data else {}
 
         return Voucher(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -133,7 +134,7 @@ async def create_vouchers(
             return {"dry_run": True, "payload": payload}
 
         response = await client.post(f"/integration/v1/sites/{site_id}/vouchers", json_data=payload)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         # Audit the action
         await audit_action(
@@ -245,5 +246,5 @@ async def bulk_delete_vouchers(
         return {
             "success": True,
             "message": "Vouchers deleted successfully",
-            "deleted_count": response.get("data", {}).get("count", 0),
+            "deleted_count": (response.get("data", {}).get("count", 0) if isinstance(response, dict) else 0),
         }

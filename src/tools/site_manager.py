@@ -62,7 +62,7 @@ async def list_all_sites_aggregated(settings: Settings) -> list[dict[str, Any]]:
         logger.info("Retrieving aggregated site list from Site Manager API")
 
         response = await client.list_sites()
-        sites_data = response.get("data", response.get("sites", []))
+        sites_data = response if isinstance(response, list) else response.get("data", response.get("sites", []))
 
         # Enhance with aggregated stats if available
         sites: list[dict[str, Any]] = []
@@ -88,7 +88,7 @@ async def get_internet_health(settings: Settings, site_id: str | None = None) ->
         logger.info(sanitize_log_message(f"Retrieving internet health metrics (site_id={site_id})"))
 
         response = await client.get_internet_health(site_id)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return InternetHealthMetrics(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -138,10 +138,10 @@ async def get_cross_site_statistics(settings: Settings) -> dict[str, Any]:
 
         # Get all sites with health
         sites_response = await client.list_sites()
-        sites_data = sites_response.get("data", sites_response.get("sites", []))
+        sites_data = sites_response if isinstance(sites_response, list) else sites_response.get("data", sites_response.get("sites", []))
 
         health_response = await client.get_site_health()
-        health_data = health_response.get("data", health_response)
+        health_data = health_response if isinstance(health_response, list) else health_response.get("data", health_response)
 
         # Aggregate statistics
         total_sites = len(sites_data)
@@ -228,7 +228,7 @@ async def get_site_inventory(
         if site_id:
             # Get inventory for specific site
             site_response = await client.get(f"sites/{site_id}")
-            site_data = site_response.get("data", site_response)
+            site_data = site_response if isinstance(site_response, list) else site_response.get("data", site_response)
 
             # Fetch detailed counts (these would come from various endpoints)
             # For now, using available data from site response
@@ -249,7 +249,7 @@ async def get_site_inventory(
         else:
             # Get inventory for all sites
             sites_response = await client.list_sites()
-            sites_data = sites_response.get("data", sites_response.get("sites", []))
+            sites_data = sites_response if isinstance(sites_response, list) else sites_response.get("data", sites_response.get("sites", []))
 
             inventories = []
             for site in sites_data:
@@ -290,11 +290,11 @@ async def compare_site_performance(settings: Settings) -> dict[str, Any]:
 
         # Get site health data
         health_response = await client.get_site_health()
-        health_data = health_response.get("data", health_response)
+        health_data = health_response if isinstance(health_response, list) else health_response.get("data", health_response)
 
         # Get internet health data for bandwidth/latency
         internet_response = await client.get_internet_health()
-        internet_data = internet_response.get("data", internet_response)
+        internet_data = internet_response if isinstance(internet_response, list) else internet_response.get("data", internet_response)
 
         site_metrics: list[SitePerformanceMetrics] = []
 
@@ -403,7 +403,7 @@ async def search_across_sites(
 
         # Get all sites first
         sites_response = await client.list_sites()
-        sites_data = sites_response.get("data", sites_response.get("sites", []))
+        sites_data = sites_response if isinstance(sites_response, list) else sites_response.get("data", sites_response.get("sites", []))
 
         results: list[dict[str, Any]] = []
         query_lower = query.lower()
@@ -502,7 +502,7 @@ async def get_isp_metrics(settings: Settings, site_id: str) -> dict[str, Any]:
         logger.info(sanitize_log_message(f"Retrieving ISP metrics for site: {site_id}"))
 
         response = await client.get_isp_metrics(site_id)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return ISPMetrics(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -530,7 +530,7 @@ async def query_isp_metrics(
         logger.info(sanitize_log_message(f"Querying ISP metrics (site_id={site_id}, start={start_time}, end={end_time})"))
 
         response = await client.query_isp_metrics(site_id, start_time, end_time)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         # Handle both single result and list of results
         if isinstance(data, list):
@@ -556,7 +556,7 @@ async def list_sdwan_configs(settings: Settings) -> list[dict[str, Any]]:
         logger.info("Retrieving SD-WAN configurations")
 
         response = await client.list_sdwan_configs()
-        data = response.get("data", response.get("configs", []))
+        data = response if isinstance(response, list) else response.get("data", response.get("configs", []))
 
         if isinstance(data, list):
             return [SDWANConfig(**config).model_dump() for config in data]
@@ -580,7 +580,7 @@ async def get_sdwan_config(settings: Settings, config_id: str) -> dict[str, Any]
         logger.info(sanitize_log_message(f"Retrieving SD-WAN configuration: {config_id}"))
 
         response = await client.get_sdwan_config(config_id)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return SDWANConfig(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -601,7 +601,7 @@ async def get_sdwan_config_status(settings: Settings, config_id: str) -> dict[st
         logger.info(sanitize_log_message(f"Retrieving SD-WAN configuration status: {config_id}"))
 
         response = await client.get_sdwan_config_status(config_id)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return SDWANConfigStatus(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -626,7 +626,7 @@ async def list_hosts(
         logger.info(sanitize_log_message(f"Retrieving hosts list (limit={limit}, offset={offset})"))
 
         response = await client.list_hosts(limit, offset)
-        data = response.get("data", response.get("hosts", []))
+        data = response if isinstance(response, list) else response.get("data", response.get("hosts", []))
 
         if isinstance(data, list):
             return [Host(**host).model_dump() for host in data]
@@ -650,7 +650,7 @@ async def get_host(settings: Settings, host_id: str) -> dict[str, Any]:
         logger.info(sanitize_log_message(f"Retrieving host details: {host_id}"))
 
         response = await client.get_host(host_id)
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return Host(**data).model_dump()  # type: ignore[no-any-return]
 
@@ -671,6 +671,6 @@ async def get_version_control(settings: Settings) -> dict[str, Any]:
         logger.info("Retrieving API version control information")
 
         response = await client.get_version_control()
-        data = response.get("data", response)
+        data = response if isinstance(response, list) else response.get("data", response)
 
         return VersionControl(**data).model_dump()  # type: ignore[no-any-return]
