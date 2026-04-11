@@ -1521,3 +1521,415 @@ class TestCreateFirewallPolicyConfirmCoercion:
                 ip_version="IPV5",
                 confirm=True,
             )
+
+
+class TestCreateFirewallPolicyPortMatching:
+    """Verify port / port_group_id / port_matching_type plumbing."""
+
+    @pytest.fixture
+    def local_settings(self, monkeypatch: pytest.MonkeyPatch) -> Settings:
+        monkeypatch.setenv("UNIFI_API_KEY", "test-api-key")
+        monkeypatch.setenv("UNIFI_API_TYPE", "local")
+        monkeypatch.setenv("UNIFI_LOCAL_HOST", "192.168.2.1")
+        return Settings()
+
+    @pytest.fixture
+    def created_policy(self) -> dict:
+        return {
+            "_id": "new-policy",
+            "name": "test",
+            "action": "ALLOW",
+            "enabled": True,
+            "predefined": False,
+            "ip_version": "BOTH",
+            "protocol": "all",
+            "schedule": {"mode": "ALWAYS"},
+            "source": {"zone_id": "z1", "matching_target": "ANY"},
+            "destination": {"zone_id": "z2", "matching_target": "ANY"},
+        }
+
+    @pytest.mark.asyncio
+    async def test_specific_destination_port_auto_sets_mode(
+        self, local_settings: Settings, created_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.post.return_value = created_policy
+
+            try:
+                await create_firewall_policy(
+                    name="Allow DNS",
+                    action="ALLOW",
+                    site_id="default",
+                    settings=local_settings,
+                    source_zone_id="z1",
+                    destination_zone_id="z2",
+                    destination_port="53",
+                    confirm=True,
+                )
+            finally:
+                _zone_cache.pop("default", None)
+
+            body = mock_client.post.call_args[1]["json_data"]
+            assert body["destination"]["port_matching_type"] == "SPECIFIC"
+            assert body["destination"]["port"] == "53"
+            assert "port_group_id" not in body["destination"]
+            # Source side stays ANY (default)
+            assert body["source"]["port_matching_type"] == "ANY"
+            assert "port" not in body["source"]
+
+    @pytest.mark.asyncio
+    async def test_destination_port_range(
+        self, local_settings: Settings, created_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.post.return_value = created_policy
+
+            try:
+                await create_firewall_policy(
+                    name="Allow ranges",
+                    action="ALLOW",
+                    site_id="default",
+                    settings=local_settings,
+                    source_zone_id="z1",
+                    destination_zone_id="z2",
+                    destination_port="9000-9010",
+                    confirm=True,
+                )
+            finally:
+                _zone_cache.pop("default", None)
+
+            body = mock_client.post.call_args[1]["json_data"]
+            assert body["destination"]["port"] == "9000-9010"
+            assert body["destination"]["port_matching_type"] == "SPECIFIC"
+
+    @pytest.mark.asyncio
+    async def test_port_group_id_auto_sets_object_mode(
+        self, local_settings: Settings, created_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.post.return_value = created_policy
+
+            try:
+                await create_firewall_policy(
+                    name="Allow port group",
+                    action="ALLOW",
+                    site_id="default",
+                    settings=local_settings,
+                    source_zone_id="z1",
+                    destination_zone_id="z2",
+                    destination_port_group_id="pg-1",
+                    confirm=True,
+                )
+            finally:
+                _zone_cache.pop("default", None)
+
+            body = mock_client.post.call_args[1]["json_data"]
+            assert body["destination"]["port_matching_type"] == "OBJECT"
+            assert body["destination"]["port_group_id"] == "pg-1"
+            assert "port" not in body["destination"]
+
+    @pytest.mark.asyncio
+    async def test_port_and_port_group_id_conflict(
+        self, local_settings: Settings, created_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+
+            try:
+                with pytest.raises(ValueError, match="port.*port_group_id"):
+                    await create_firewall_policy(
+                        name="Conflict",
+                        action="ALLOW",
+                        site_id="default",
+                        settings=local_settings,
+                        source_zone_id="z1",
+                        destination_zone_id="z2",
+                        destination_port="53",
+                        destination_port_group_id="pg-1",
+                        confirm=True,
+                    )
+            finally:
+                _zone_cache.pop("default", None)
+
+    @pytest.mark.asyncio
+    async def test_match_opposite_ports_passthrough(
+        self, local_settings: Settings, created_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.post.return_value = created_policy
+
+            try:
+                await create_firewall_policy(
+                    name="NOT 53",
+                    action="BLOCK",
+                    site_id="default",
+                    settings=local_settings,
+                    source_zone_id="z1",
+                    destination_zone_id="z2",
+                    destination_port="53",
+                    destination_match_opposite_ports=True,
+                    confirm=True,
+                )
+            finally:
+                _zone_cache.pop("default", None)
+
+            body = mock_client.post.call_args[1]["json_data"]
+            assert body["destination"]["match_opposite_ports"] is True
+
+    @pytest.mark.asyncio
+    async def test_specific_without_port_raises(
+        self, local_settings: Settings
+    ) -> None:
+        """port_matching_type='SPECIFIC' without a port value must error."""
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+
+            try:
+                with pytest.raises(ValueError, match="SPECIFIC.*requires.*port"):
+                    await create_firewall_policy(
+                        name="Bad",
+                        action="ALLOW",
+                        site_id="default",
+                        settings=local_settings,
+                        source_zone_id="z1",
+                        destination_zone_id="z2",
+                        destination_port_matching_type="SPECIFIC",
+                        confirm=True,
+                    )
+            finally:
+                _zone_cache.pop("default", None)
+
+    @pytest.mark.asyncio
+    async def test_object_without_port_group_id_raises(
+        self, local_settings: Settings
+    ) -> None:
+        """port_matching_type='OBJECT' without a port_group_id must error."""
+        from src.tools.firewall_policies import _zone_cache, create_firewall_policy
+
+        _zone_cache["default"] = {"z1": "z1", "z2": "z2"}
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+
+            try:
+                with pytest.raises(ValueError, match="OBJECT.*requires.*port_group_id"):
+                    await create_firewall_policy(
+                        name="Bad",
+                        action="ALLOW",
+                        site_id="default",
+                        settings=local_settings,
+                        source_zone_id="z1",
+                        destination_zone_id="z2",
+                        destination_port_matching_type="OBJECT",
+                        confirm=True,
+                    )
+            finally:
+                _zone_cache.pop("default", None)
+
+
+class TestUpdateFirewallPolicyPortMatching:
+    """Verify update_firewall_policy port-merge behaviour."""
+
+    @pytest.fixture
+    def local_settings(self, monkeypatch: pytest.MonkeyPatch) -> Settings:
+        monkeypatch.setenv("UNIFI_API_KEY", "test-api-key")
+        monkeypatch.setenv("UNIFI_API_TYPE", "local")
+        monkeypatch.setenv("UNIFI_LOCAL_HOST", "192.168.2.1")
+        return Settings()
+
+    @pytest.fixture
+    def existing_policy(self) -> dict:
+        return {
+            "_id": "p1",
+            "name": "Allow Identity Sync",
+            "action": "ALLOW",
+            "enabled": True,
+            "predefined": False,
+            "ip_version": "BOTH",
+            "protocol": "all",
+            "logging": False,
+            "schedule": {"mode": "ALWAYS"},
+            "source": {
+                "zone_id": "z-internal",
+                "matching_target": "ANY",
+                "port_matching_type": "ANY",
+            },
+            "destination": {
+                "zone_id": "z-gateway",
+                "matching_target": "ANY",
+                "port_matching_type": "OBJECT",
+                "port_group_id": "pg-old",
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_switch_object_to_specific_clears_port_group_id(
+        self, local_settings: Settings, existing_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import update_firewall_policy
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.get.return_value = existing_policy
+            mock_client.put.return_value = existing_policy
+
+            await update_firewall_policy(
+                policy_id="p1",
+                site_id="default",
+                settings=local_settings,
+                destination_port="9543",
+                confirm=True,
+            )
+
+            put_body = mock_client.put.call_args[1]["json_data"]
+            assert put_body["destination"]["port_matching_type"] == "SPECIFIC"
+            assert put_body["destination"]["port"] == "9543"
+            # Old port_group_id must be removed since we switched modes
+            assert "port_group_id" not in put_body["destination"]
+            # Existing zone_id and matching_target preserved
+            assert put_body["destination"]["zone_id"] == "z-gateway"
+            assert put_body["destination"]["matching_target"] == "ANY"
+
+    @pytest.mark.asyncio
+    async def test_switch_to_any_clears_both_port_fields(
+        self, local_settings: Settings, existing_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import update_firewall_policy
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.get.return_value = existing_policy
+            mock_client.put.return_value = existing_policy
+
+            await update_firewall_policy(
+                policy_id="p1",
+                site_id="default",
+                settings=local_settings,
+                destination_port_matching_type="ANY",
+                confirm=True,
+            )
+
+            put_body = mock_client.put.call_args[1]["json_data"]
+            assert put_body["destination"]["port_matching_type"] == "ANY"
+            assert "port" not in put_body["destination"]
+            assert "port_group_id" not in put_body["destination"]
+
+    @pytest.mark.asyncio
+    async def test_change_only_port_group_id(
+        self, local_settings: Settings, existing_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import update_firewall_policy
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.get.return_value = existing_policy
+            mock_client.put.return_value = existing_policy
+
+            await update_firewall_policy(
+                policy_id="p1",
+                site_id="default",
+                settings=local_settings,
+                destination_port_group_id="pg-new",
+                confirm=True,
+            )
+
+            put_body = mock_client.put.call_args[1]["json_data"]
+            assert put_body["destination"]["port_group_id"] == "pg-new"
+            assert put_body["destination"]["port_matching_type"] == "OBJECT"
+            assert "port" not in put_body["destination"]
+
+    @pytest.mark.asyncio
+    async def test_unrelated_field_does_not_touch_ports(
+        self, local_settings: Settings, existing_policy: dict
+    ) -> None:
+        """A name-only update must leave existing port settings alone."""
+        from src.tools.firewall_policies import update_firewall_policy
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.get.return_value = existing_policy
+            mock_client.put.return_value = existing_policy
+
+            await update_firewall_policy(
+                policy_id="p1",
+                site_id="default",
+                settings=local_settings,
+                name="renamed",
+                confirm=True,
+            )
+
+            put_body = mock_client.put.call_args[1]["json_data"]
+            assert put_body["destination"]["port_matching_type"] == "OBJECT"
+            assert put_body["destination"]["port_group_id"] == "pg-old"
+
+    @pytest.mark.asyncio
+    async def test_port_and_port_group_id_conflict_on_update(
+        self, local_settings: Settings, existing_policy: dict
+    ) -> None:
+        from src.tools.firewall_policies import update_firewall_policy
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client.get.return_value = existing_policy
+
+            with pytest.raises(ValueError, match="port.*port_group_id"):
+                await update_firewall_policy(
+                    policy_id="p1",
+                    site_id="default",
+                    settings=local_settings,
+                    destination_port="53",
+                    destination_port_group_id="pg-1",
+                    confirm=True,
+                )

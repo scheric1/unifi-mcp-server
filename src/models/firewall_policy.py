@@ -32,8 +32,18 @@ class MatchTarget(BaseModel):
     zone_id: str = Field(..., description="Firewall zone ID")
     matching_target: MatchingTarget = Field(..., description="Target matching type")
     matching_target_type: str | None = Field(None, description="Target type qualifier")
-    port_matching_type: str | None = Field(None, description="Port matching type (ANY/SPECIFIC)")
-    port: str | None = Field(None, description="Port(s) e.g. '53', '80,443', '1000-2000'")
+    port_matching_type: str | None = Field(
+        None,
+        description="Port matching mode: ANY (no filter), SPECIFIC (use 'port'), OBJECT (use 'port_group_id')",
+    )
+    port: str | None = Field(
+        None,
+        description="Port value for SPECIFIC mode — single port '53' or range '9000-9010'",
+    )
+    port_group_id: str | None = Field(
+        None,
+        description="Firewall port-group id for OBJECT mode (see firewall_groups tools)",
+    )
     match_opposite_ports: bool | None = Field(None, description="Invert port matching")
     ips: list[str] | None = Field(None, description="IP addresses for IP matching")
     match_opposite_ips: bool | None = Field(None, description="Invert IP matching")
@@ -102,6 +112,10 @@ class FirewallPolicyCreate(BaseModel):
     description: str | None = Field(None, description="Policy description")
     index: int | None = Field(None, description="Priority order")
     schedule: dict | None = Field(None, description="Time-based scheduling")
+    create_allow_respond: bool | None = Field(
+        None,
+        description="Allow response traffic. Must be False for BLOCK rules.",
+    )
 
     model_config = ConfigDict(extra="allow")
 
