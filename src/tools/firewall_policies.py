@@ -21,6 +21,196 @@ logger = get_logger(__name__)
 _zone_cache: dict[str, dict[str, str]] = {}
 
 _VALID_IP_VERSIONS = ("IPV4", "IPV6", "BOTH")
+_VALID_PORT_MATCHING_TYPES = ("ANY", "SPECIFIC", "OBJECT")
+
+
+def _build_match_target(
+    *,
+    zone_id: str | None,
+    matching_target: str,
+    port: str | None,
+    port_group_id: str | None,
+    port_matching_type: str | None,
+    match_opposite_ports: bool | None,
+    ips: list[str] | None = None,
+    network_ids: list[str] | None = None,
+    client_macs: list[str] | None = None,
+    match_opposite_ips: bool | None = None,
+) -> dict[str, Any]:
+    """Build a source/destination match-target dict for a firewall policy.
+
+    The v2 ``firewall-policies`` endpoint stores source and destination
+    criteria as nested objects with two discriminators:
+
+    **Port matching** (``port_matching_type``):
+
+    * ``ANY`` — no port filter (default)
+    * ``SPECIFIC`` — a literal port / range in ``port``
+    * ``OBJECT`` — a reference to a firewall port-group via ``port_group_id``
+
+    **Target matching** (``matching_target`` + ``matching_target_type``):
+
+    * ``ANY`` — match everything in the zone
+    * ``IP`` — match specific IPs/CIDRs via ``ips`` list (requires
+      ``matching_target_type=SPECIFIC``, auto-set when ``ips`` is provided)
+    * ``NETWORK`` — match specific VLANs via ``network_ids``
+    * ``CLIENT`` — match specific MACs via ``client_macs``
+    * ``REGION`` — match by ISO country codes (not wired yet)
+
+    Both discriminators are auto-selected based on which fields the caller
+    provides, so callers don't have to think about the mode fields.
+    """
+    if port and port_group_id:
+        raise ValueError(
+            "Cannot specify both 'port' and 'port_group_id' on the same "
+            "match target — use one or the other."
+        )
+
+    if port_matching_type is None:
+        if port_group_id:
+            resolved_mt = "OBJECT"
+        elif port:
+            resolved_mt = "SPECIFIC"
+        else:
+            resolved_mt = "ANY"
+    else:
+        resolved_mt = port_matching_type.upper()
+        if resolved_mt not in _VALID_PORT_MATCHING_TYPES:
+            raise ValueError(
+                f"Invalid port_matching_type '{port_matching_type}'. "
+                f"Must be one of: {list(_VALID_PORT_MATCHING_TYPES)}"
+            )
+
+    # Validate consistency: an explicit SPECIFIC requires `port` and
+    # OBJECT requires `port_group_id`. Without these the API would receive
+    # an incomplete payload and reject it, so fail fast here.
+    if resolved_mt == "SPECIFIC" and not port:
+        raise ValueError(
+            "port_matching_type='SPECIFIC' requires a 'port' value "
+            "(e.g. '53' or '9000-9010')."
+        )
+    if resolved_mt == "OBJECT" and not port_group_id:
+        raise ValueError(
+            "port_matching_type='OBJECT' requires a 'port_group_id' "
+            "referencing an existing firewall port-group."
+        )
+
+    # Auto-detect matching_target from the provided lists when the caller
+    # passes the default "ANY" but also supplies ips/network_ids/client_macs.
+    resolved_matching_target = matching_target.upper()
+    if resolved_matching_target == "ANY":
+        if ips:
+            resolved_matching_target = "IP"
+        elif network_ids:
+            resolved_matching_target = "NETWORK"
+        elif client_macs:
+            resolved_matching_target = "CLIENT"
+
+    target: dict[str, Any] = {
+        "matching_target": resolved_matching_target,
+        "port_matching_type": resolved_mt,
+    }
+
+    # When matching_target is not ANY, the API requires matching_target_type.
+    if resolved_matching_target != "ANY":
+        target["matching_target_type"] = "SPECIFIC"
+
+    if zone_id:
+        target["zone_id"] = zone_id
+    if resolved_mt == "SPECIFIC":
+        target["port"] = port
+    if resolved_mt == "OBJECT":
+        target["port_group_id"] = port_group_id
+    if match_opposite_ports is not None:
+        target["match_opposite_ports"] = match_opposite_ports
+    if ips is not None:
+        target["ips"] = list(ips)
+    if network_ids is not None:
+        target["network_ids"] = list(network_ids)
+    if client_macs is not None:
+        target["client_macs"] = list(client_macs)
+    if match_opposite_ips is not None:
+        target["match_opposite_ips"] = match_opposite_ips
+    return target
+
+
+def _collect_port_overrides(
+    *,
+    port: str | None,
+    port_group_id: str | None,
+    port_matching_type: str | None,
+    match_opposite_ports: bool | None,
+) -> dict[str, Any] | None:
+    """Build the partial port-related override dict applied during update.
+
+    Returns ``None`` when the caller did not request any port-related
+    change. The result is a small dict with the keys the v2 API expects on
+    the ``source`` / ``destination`` sub-objects: ``port_matching_type``,
+    optionally ``port`` or ``port_group_id``, and optionally
+    ``match_opposite_ports``. It also clears the field that no longer
+    applies (e.g. clearing ``port`` when switching to OBJECT mode) so the
+    merged payload remains internally consistent.
+    """
+    if (
+        port is None
+        and port_group_id is None
+        and port_matching_type is None
+        and match_opposite_ports is None
+    ):
+        return None
+
+    if port and port_group_id:
+        raise ValueError(
+            "Cannot specify both 'port' and 'port_group_id' on the same "
+            "match target — use one or the other."
+        )
+
+    if port_matching_type is None:
+        if port_group_id:
+            resolved_mt: str | None = "OBJECT"
+        elif port:
+            resolved_mt = "SPECIFIC"
+        else:
+            resolved_mt = None
+    else:
+        resolved_mt = port_matching_type.upper()
+        if resolved_mt not in _VALID_PORT_MATCHING_TYPES:
+            raise ValueError(
+                f"Invalid port_matching_type '{port_matching_type}'. "
+                f"Must be one of: {list(_VALID_PORT_MATCHING_TYPES)}"
+            )
+
+    overrides: dict[str, Any] = {}
+    if resolved_mt is not None:
+        overrides["port_matching_type"] = resolved_mt
+    if port is not None:
+        overrides["port"] = port
+    if port_group_id is not None:
+        overrides["port_group_id"] = port_group_id
+    if match_opposite_ports is not None:
+        overrides["match_opposite_ports"] = match_opposite_ports
+    return overrides
+
+
+def _merge_port_overrides(
+    existing: dict[str, Any], overrides: dict[str, Any]
+) -> dict[str, Any]:
+    """Merge port overrides into an existing source/destination sub-dict.
+
+    Clears the now-unused field when switching modes — e.g. switching from
+    SPECIFIC to OBJECT removes the stale ``port``; switching to ANY removes
+    both ``port`` and ``port_group_id``.
+    """
+    merged = {**existing, **overrides}
+    new_mode = merged.get("port_matching_type")
+    if new_mode == "ANY":
+        merged.pop("port", None)
+        merged.pop("port_group_id", None)
+    elif new_mode == "SPECIFIC":
+        merged.pop("port_group_id", None)
+    elif new_mode == "OBJECT":
+        merged.pop("port", None)
+    return merged
 
 
 def _extract_zone_list(response: Any) -> list[dict[str, Any]]:
@@ -273,10 +463,27 @@ async def create_firewall_policy(
     destination_zone_id: str | None = None,
     source_matching_target: str = "ANY",
     destination_matching_target: str = "ANY",
+    source_port: str | None = None,
+    destination_port: str | None = None,
+    source_port_group_id: str | None = None,
+    destination_port_group_id: str | None = None,
+    source_port_matching_type: str | None = None,
+    destination_port_matching_type: str | None = None,
+    source_match_opposite_ports: bool | None = None,
+    destination_match_opposite_ports: bool | None = None,
+    source_ips: list[str] | None = None,
+    destination_ips: list[str] | None = None,
+    source_network_ids: list[str] | None = None,
+    destination_network_ids: list[str] | None = None,
+    source_client_macs: list[str] | None = None,
+    destination_client_macs: list[str] | None = None,
+    source_match_opposite_ips: bool | None = None,
+    destination_match_opposite_ips: bool | None = None,
     protocol: str = "all",
     enabled: bool = True,
     description: str | None = None,
     ip_version: str = "BOTH",
+    create_allow_respond: bool | None = None,
     confirm: bool | str = False,
     dry_run: bool | str = False,
 ) -> dict[str, Any]:
@@ -297,6 +504,36 @@ async def create_firewall_policy(
             source)
         source_matching_target: ANY, IP, NETWORK, REGION, or CLIENT
         destination_matching_target: ANY, IP, NETWORK, or REGION
+        source_port: Source port — single port "53" or range "9000-9010".
+            Implies ``source_port_matching_type=SPECIFIC``.
+        destination_port: Destination port — same format as source_port.
+            Implies ``destination_port_matching_type=SPECIFIC``.
+        source_port_group_id: Reference a firewall port-group on the source
+            side. Implies ``source_port_matching_type=OBJECT``. Use the
+            ``firewall_groups`` tools to create / list port groups.
+        destination_port_group_id: Same as source_port_group_id but on the
+            destination side.
+        source_port_matching_type: Override auto-detection of port matching
+            mode (ANY/SPECIFIC/OBJECT). Usually you don't need this — pass
+            ``source_port`` or ``source_port_group_id`` and the mode is set
+            automatically.
+        destination_port_matching_type: Same as source_port_matching_type
+            but on the destination side.
+        source_match_opposite_ports: Invert the source port match (NOT)
+        destination_match_opposite_ports: Invert the destination port match
+        source_ips: List of source IPs or CIDRs (e.g. ``["10.0.100.0/24"]``).
+            Auto-sets ``source_matching_target=IP`` +
+            ``matching_target_type=SPECIFIC``.
+        destination_ips: List of destination IPs or CIDRs. Auto-sets
+            ``destination_matching_target=IP``.
+        source_network_ids: List of source network (VLAN) internal IDs.
+            Auto-sets ``source_matching_target=NETWORK``.
+        destination_network_ids: List of destination network IDs.
+        source_client_macs: List of source client MAC addresses.
+            Auto-sets ``source_matching_target=CLIENT``.
+        destination_client_macs: List of destination client MACs.
+        source_match_opposite_ips: Invert the source IP match (NOT)
+        destination_match_opposite_ips: Invert the destination IP match
         protocol: all, tcp, udp, tcp_udp, or icmpv6
         enabled: Whether policy is active
         description: Optional description
@@ -353,26 +590,58 @@ async def create_firewall_policy(
             if not client.is_authenticated:
                 await client.authenticate()
 
-            # Resolve zone identifiers to internal _ids expected by the v2 API.
-            source_config: dict[str, Any] = {
-                "matching_target": source_matching_target.upper()
-            }
-            if source_zone_id:
-                source_config["zone_id"] = await _resolve_zone_id(
-                    client, settings, site_id, source_zone_id
-                )
-
-            destination_config: dict[str, Any] = {
-                "matching_target": destination_matching_target.upper()
-            }
-            if destination_zone_id:
-                destination_config["zone_id"] = await _resolve_zone_id(
+            # Resolve zone identifiers to the internal _ids the v2 API
+            # requires (accepting zone name / external UUID / internal _id).
+            resolved_source_zone = (
+                await _resolve_zone_id(client, settings, site_id, source_zone_id)
+                if source_zone_id
+                else None
+            )
+            resolved_destination_zone = (
+                await _resolve_zone_id(
                     client, settings, site_id, destination_zone_id
                 )
+                if destination_zone_id
+                else None
+            )
+
+            source_config = _build_match_target(
+                zone_id=resolved_source_zone,
+                matching_target=source_matching_target,
+                port=source_port,
+                port_group_id=source_port_group_id,
+                port_matching_type=source_port_matching_type,
+                match_opposite_ports=source_match_opposite_ports,
+                ips=source_ips,
+                network_ids=source_network_ids,
+                client_macs=source_client_macs,
+                match_opposite_ips=source_match_opposite_ips,
+            )
+            destination_config = _build_match_target(
+                zone_id=resolved_destination_zone,
+                matching_target=destination_matching_target,
+                port=destination_port,
+                port_group_id=destination_port_group_id,
+                port_matching_type=destination_port_matching_type,
+                match_opposite_ports=destination_match_opposite_ports,
+                ips=destination_ips,
+                network_ids=destination_network_ids,
+                client_macs=destination_client_macs,
+                match_opposite_ips=destination_match_opposite_ips,
+            )
 
             # The v2 firewall-policies endpoint requires `schedule` and
             # `ip_version`; the API 400s (with an obfuscated Spring error)
             # if either is omitted. Default to an always-on rule.
+            #
+            # create_allow_respond must be False for BLOCK rules — the API
+            # rejects BLOCK + respond-traffic enabled. Auto-set when the
+            # caller doesn't specify.
+            if create_allow_respond is None:
+                resolved_allow_respond = action_upper != "BLOCK"
+            else:
+                resolved_allow_respond = create_allow_respond
+
             policy_data = FirewallPolicyCreate(
                 name=name,
                 action=action_upper,
@@ -383,6 +652,7 @@ async def create_firewall_policy(
                 destination=destination_config,
                 description=description,
                 schedule={"mode": "ALWAYS"},
+                create_allow_respond=resolved_allow_respond,
             )
 
             if dry_run_bool:
@@ -446,6 +716,25 @@ async def update_firewall_policy(
     ip_version: str | None = None,
     protocol: str | None = None,
     description: str | None = None,
+    source_zone_id: str | None = None,
+    destination_zone_id: str | None = None,
+    source_port: str | None = None,
+    destination_port: str | None = None,
+    source_port_group_id: str | None = None,
+    destination_port_group_id: str | None = None,
+    source_port_matching_type: str | None = None,
+    destination_port_matching_type: str | None = None,
+    source_match_opposite_ports: bool | None = None,
+    destination_match_opposite_ports: bool | None = None,
+    source_ips: list[str] | None = None,
+    destination_ips: list[str] | None = None,
+    source_network_ids: list[str] | None = None,
+    destination_network_ids: list[str] | None = None,
+    source_client_macs: list[str] | None = None,
+    destination_client_macs: list[str] | None = None,
+    source_match_opposite_ips: bool | None = None,
+    destination_match_opposite_ips: bool | None = None,
+    create_allow_respond: bool | None = None,
     confirm: bool | str = False,
     dry_run: bool | str = False,
 ) -> dict[str, Any]:
@@ -473,6 +762,19 @@ async def update_firewall_policy(
         ip_version: IPV4 / IPV6 / BOTH
         protocol: Transport protocol (all, tcp, udp, tcp_udp, icmpv6)
         description: Free-form description
+        source_port: Source port — single port "53" or range "9000-9010".
+            Auto-sets ``source_port_matching_type=SPECIFIC``.
+        destination_port: Destination port — same format as source_port.
+        source_port_group_id: Reference a firewall port-group on the source
+            side. Auto-sets ``source_port_matching_type=OBJECT``.
+        destination_port_group_id: Reference a firewall port-group on the
+            destination side.
+        source_port_matching_type: Override auto-detection of port matching
+            mode (ANY/SPECIFIC/OBJECT). To clear an existing port filter,
+            pass ``"ANY"`` explicitly.
+        destination_port_matching_type: Same as source_port_matching_type.
+        source_match_opposite_ports: Invert the source port match (NOT)
+        destination_match_opposite_ports: Invert the destination port match
         confirm: REQUIRED True for mutating operations
         dry_run: Preview changes without applying
 
@@ -510,7 +812,7 @@ async def update_firewall_policy(
                 f"Invalid ip_version '{ip_version}'. Must be one of: {list(_VALID_IP_VERSIONS)}"
             )
 
-    # Collect overrides so we can both preview them (dry_run) and merge them.
+    # Collect top-level overrides so we can both preview them and merge them.
     overrides: dict[str, Any] = {}
     if name is not None:
         overrides["name"] = name
@@ -526,6 +828,61 @@ async def update_firewall_policy(
         overrides["protocol"] = protocol
     if description is not None:
         overrides["description"] = description
+    if create_allow_respond is not None:
+        overrides["create_allow_respond"] = create_allow_respond
+
+    # Validate / collect port overrides; these merge into the source and
+    # destination sub-dicts inside the policy, not as top-level fields.
+    source_port_overrides: dict[str, Any] | None = _collect_port_overrides(
+        port=source_port,
+        port_group_id=source_port_group_id,
+        port_matching_type=source_port_matching_type,
+        match_opposite_ports=source_match_opposite_ports,
+    )
+    destination_port_overrides: dict[str, Any] | None = _collect_port_overrides(
+        port=destination_port,
+        port_group_id=destination_port_group_id,
+        port_matching_type=destination_port_matching_type,
+        match_opposite_ports=destination_match_opposite_ports,
+    )
+
+    # Collect zone + IP/network/client matching overrides for the source/dest
+    # sub-dicts. Zone changes go into the same sub-dict as other target
+    # matching fields.
+    source_target_overrides: dict[str, Any] = {}
+    # Note: source_zone_id resolution is deferred to inside the UniFiClient
+    # context manager where _resolve_zone_id can make API calls.
+    if source_ips is not None:
+        source_target_overrides["matching_target"] = "IP"
+        source_target_overrides["matching_target_type"] = "SPECIFIC"
+        source_target_overrides["ips"] = list(source_ips)
+    if source_network_ids is not None:
+        source_target_overrides["matching_target"] = "NETWORK"
+        source_target_overrides["matching_target_type"] = "SPECIFIC"
+        source_target_overrides["network_ids"] = list(source_network_ids)
+    if source_client_macs is not None:
+        source_target_overrides["matching_target"] = "CLIENT"
+        source_target_overrides["matching_target_type"] = "SPECIFIC"
+        source_target_overrides["client_macs"] = list(source_client_macs)
+    if source_match_opposite_ips is not None:
+        source_target_overrides["match_opposite_ips"] = source_match_opposite_ips
+
+    destination_target_overrides: dict[str, Any] = {}
+    # Note: destination_zone_id resolution also deferred to the client context.
+    if destination_ips is not None:
+        destination_target_overrides["matching_target"] = "IP"
+        destination_target_overrides["matching_target_type"] = "SPECIFIC"
+        destination_target_overrides["ips"] = list(destination_ips)
+    if destination_network_ids is not None:
+        destination_target_overrides["matching_target"] = "NETWORK"
+        destination_target_overrides["matching_target_type"] = "SPECIFIC"
+        destination_target_overrides["network_ids"] = list(destination_network_ids)
+    if destination_client_macs is not None:
+        destination_target_overrides["matching_target"] = "CLIENT"
+        destination_target_overrides["matching_target_type"] = "SPECIFIC"
+        destination_target_overrides["client_macs"] = list(destination_client_macs)
+    if destination_match_opposite_ips is not None:
+        destination_target_overrides["match_opposite_ips"] = destination_match_opposite_ips
 
     async with UniFiClient(settings) as client:
         logger.info(
@@ -536,6 +893,17 @@ async def update_firewall_policy(
 
         if not client.is_authenticated:
             await client.authenticate()
+
+        # Resolve zone identifiers to internal _ids (accepts name, UUID, or
+        # ObjectId — same flexibility as create_firewall_policy).
+        if source_zone_id is not None:
+            source_target_overrides["zone_id"] = await _resolve_zone_id(
+                client, settings, site_id, source_zone_id
+            )
+        if destination_zone_id is not None:
+            destination_target_overrides["zone_id"] = await _resolve_zone_id(
+                client, settings, site_id, destination_zone_id
+            )
 
         endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies/{policy_id}"
 
@@ -559,6 +927,20 @@ async def update_firewall_policy(
             )
 
         merged = {**current, **overrides}
+        # Apply port and target-matching overrides to the existing source /
+        # destination sub-dicts so other fields survive.
+        if source_port_overrides or source_target_overrides:
+            src = dict(merged.get("source", {}))
+            if source_port_overrides:
+                src = _merge_port_overrides(src, source_port_overrides)
+            src.update(source_target_overrides)
+            merged["source"] = src
+        if destination_port_overrides or destination_target_overrides:
+            dst = dict(merged.get("destination", {}))
+            if destination_port_overrides:
+                dst = _merge_port_overrides(dst, destination_port_overrides)
+            dst.update(destination_target_overrides)
+            merged["destination"] = dst
         # Strip fields the API controls; sending them back causes validation errors.
         for field in ("_id", "predefined"):
             merged.pop(field, None)

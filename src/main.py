@@ -14,11 +14,15 @@ from .tools import application as application_tools
 from .tools import backups as backups_tools
 from .tools import client_management as client_mgmt_tools
 from .tools import clients as clients_tools
+from .tools import content_filtering as content_filtering_tools
 from .tools import device_control as device_control_tools
 from .tools import devices as devices_tools
+from .tools import dhcp_reservations as dhcp_tools
+from .tools import dns_management as dns_tools
 from .tools import dpi as dpi_tools
 from .tools import dpi_tools as dpi_new_tools
 from .tools import firewall as firewall_tools
+from .tools import firewall_groups as firewall_groups_tools
 from .tools import firewall_policies as firewall_policies_tools
 from .tools import firewall_zones as firewall_zones_tools
 from .tools import network_config as network_config_tools
@@ -108,11 +112,15 @@ _TOOL_MODULES = [
     backups_tools,
     client_mgmt_tools,
     clients_tools,
+    content_filtering_tools,
     device_control_tools,
+    dhcp_tools,
+    dns_tools,
     devices_tools,
     dpi_tools,
     dpi_new_tools,
     firewall_tools,
+    firewall_groups_tools,
     firewall_policies_tools,
     firewall_zones_tools,
     network_config_tools,

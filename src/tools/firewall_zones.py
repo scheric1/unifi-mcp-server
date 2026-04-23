@@ -1,5 +1,6 @@
 """Firewall zone management tools."""
 
+import re
 from typing import Any
 
 from ..api.client import UniFiClient
@@ -14,6 +15,54 @@ from ..utils import (
 )
 
 logger = get_logger(__name__)
+
+_UUID_RE = re.compile(
+    r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+)
+
+
+async def _resolve_network_uuid(
+    client: UniFiClient, settings: Settings, site_id: str, identifier: str
+) -> str:
+    """Resolve a network identifier to the integration-API UUID format.
+
+    The integration API ``/firewall/zones`` PUT requires network IDs in UUID
+    format (``xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``). But callers may pass
+    a MongoDB ObjectId from the v2/legacy API. This helper:
+
+    1. Returns ``identifier`` as-is if it's already a valid UUID.
+    2. Otherwise searches the legacy ``/rest/networkconf`` endpoint for a
+       matching ``_id`` and returns its ``external_id`` (the UUID).
+    """
+    if _UUID_RE.match(identifier.lower()):
+        return identifier
+
+    # ObjectId — resolve via legacy networkconf
+    try:
+        response = await client.get(f"/ea/sites/{site_id}/rest/networkconf")
+        items = response if isinstance(response, list) else response.get("data", [])
+        for n in items:
+            if isinstance(n, dict) and n.get("_id") == identifier:
+                ext = n.get("external_id")
+                if ext:
+                    logger.debug(
+                        sanitize_log_message(
+                            f"Resolved network ObjectId {identifier} → UUID {ext}"
+                        )
+                    )
+                    return ext
+    except Exception:
+        logger.debug(
+            sanitize_log_message(
+                f"Failed to resolve network ObjectId {identifier} via legacy API"
+            )
+        )
+
+    raise ValueError(
+        f"Could not resolve network '{identifier}' to an integration-API UUID. "
+        "Pass the UUID from the integration /networks endpoint, or a MongoDB "
+        "ObjectId that has an external_id mapping in /rest/networkconf."
+    )
 
 
 def _ensure_local_api(settings: Settings) -> None:
@@ -268,11 +317,17 @@ async def assign_network_to_zone(
 
         resolved_site_id = await client.resolve_site_id(site_id)
 
+        # The integration API PUT requires UUIDs in networkIds. Resolve
+        # ObjectIds to UUIDs if needed (the user may pass either format).
+        resolved_network_id = await _resolve_network_uuid(
+            client, settings, resolved_site_id, network_id
+        )
+
         # Get network name
         network_name = None
         try:
             network_response = await client.get(
-                settings.get_integration_path(f"sites/{resolved_site_id}/networks/{network_id}")
+                settings.get_integration_path(f"sites/{resolved_site_id}/networks/{resolved_network_id}")
             )
             if isinstance(network_response, list):
                 network_data = network_response[0] if network_response else {}
@@ -281,7 +336,7 @@ async def assign_network_to_zone(
                 network_data = _raw[0] if isinstance(_raw, list) else _raw
             network_name = network_data.get("name")
         except Exception:
-            logger.warning(sanitize_log_message(f"Could not fetch network name for {network_id}"))
+            logger.warning(sanitize_log_message(f"Could not fetch network name for {resolved_network_id}"))
 
         # Update zone to include this network
         zone_response = await client.get(
@@ -293,18 +348,22 @@ async def assign_network_to_zone(
             _raw = zone_response.get("data", zone_response)
             zone_data = _raw[0] if isinstance(_raw, list) else _raw
         current_networks = zone_data.get("networkIds", [])
+        zone_name = zone_data.get("name")
 
-        if network_id in current_networks:
-            logger.info(sanitize_log_message(f"Network {network_id} already assigned to zone {zone_id}"))
+        if resolved_network_id in current_networks:
+            logger.info(sanitize_log_message(f"Network {resolved_network_id} already assigned to zone {zone_id}"))
             return ZoneNetworkAssignment(  # type: ignore[no-any-return]
                 zone_id=zone_id,
-                network_id=network_id,
+                network_id=resolved_network_id,
                 network_name=network_name,
             ).model_dump()
 
-        updated_networks = list(current_networks) + [network_id]
+        updated_networks = list(current_networks) + [resolved_network_id]
 
-        payload = {"networkIds": updated_networks}
+        # The integration API PUT requires both networkIds AND name.
+        payload: dict[str, Any] = {"networkIds": updated_networks}
+        if zone_name is not None:
+            payload["name"] = zone_name
 
         if dry_run:
             logger.info(sanitize_log_message(f"[DRY RUN] Would assign network {network_id} to zone {zone_id}"))
@@ -320,14 +379,14 @@ async def assign_network_to_zone(
             settings,
             action_type="assign_network_to_zone",
             resource_type="zone_network_assignment",
-            resource_id=network_id,
+            resource_id=resolved_network_id,
             site_id=site_id,
-            details={"zone_id": zone_id, "network_id": network_id},
+            details={"zone_id": zone_id, "network_id": resolved_network_id},
         )
 
         return ZoneNetworkAssignment(  # type: ignore[no-any-return]
             zone_id=zone_id,
-            network_id=network_id,
+            network_id=resolved_network_id,
             network_name=network_name,
         ).model_dump()
 
@@ -494,6 +553,7 @@ async def unassign_network_from_zone(
             _raw = zone_response.get("data", zone_response)
             zone_data = _raw[0] if isinstance(_raw, list) else _raw
         current_networks = zone_data.get("networkIds", [])
+        zone_name = zone_data.get("name")
 
         if network_id not in current_networks:
             raise ValueError(f"Network {network_id} is not assigned to zone {zone_id}")
@@ -501,7 +561,9 @@ async def unassign_network_from_zone(
         # Remove network from list
         updated_networks = [nid for nid in current_networks if nid != network_id]
 
-        payload = {"networkIds": updated_networks}
+        payload: dict[str, Any] = {"networkIds": updated_networks}
+        if zone_name is not None:
+            payload["name"] = zone_name
 
         if dry_run:
             logger.info(sanitize_log_message(f"[DRY RUN] Would remove network {network_id} from zone {zone_id}"))

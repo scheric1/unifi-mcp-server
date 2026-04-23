@@ -366,8 +366,12 @@ class TestAssignNetworkToZone:
     async def test_assign_network_to_zone_success(self, mock_settings, sample_firewall_zones):
         from src.tools.firewall_zones import assign_network_to_zone
 
-        zone_data = {"data": {"networkIds": ["net-001"]}}
-        network_data = {"data": {"name": "NewNetwork"}}
+        # Use UUID-format IDs so _resolve_network_uuid passes through
+        # without hitting the legacy API.
+        net_existing = "aaaaaaaa-bbbb-cccc-dddd-000000000001"
+        net_new = "aaaaaaaa-bbbb-cccc-dddd-000000000099"
+        zone_data = {"networkIds": [net_existing], "name": "LAN"}
+        network_data = {"name": "NewNetwork"}
 
         with (
             patch("src.tools.firewall_zones.UniFiClient") as mock_client,
@@ -380,7 +384,7 @@ class TestAssignNetworkToZone:
             mock_instance.resolve_site_id = AsyncMock(return_value="default")
 
             def get_side_effect(endpoint):
-                if "networks/net-new" in endpoint:
+                if f"networks/{net_new}" in endpoint:
                     return network_data
                 return zone_data
 
@@ -390,22 +394,28 @@ class TestAssignNetworkToZone:
             result = await assign_network_to_zone(
                 "default",
                 "zone-001",
-                "net-new",
+                net_new,
                 mock_settings,
                 confirm=True,
             )
 
             assert result["zone_id"] == "zone-001"
-            assert result["network_id"] == "net-new"
+            assert result["network_id"] == net_new
             _, kwargs = mock_instance.put.call_args
             assert "networkIds" in kwargs["json_data"]
-            assert "net-new" in kwargs["json_data"]["networkIds"]
+            assert net_new in kwargs["json_data"]["networkIds"]
+            # Existing networks must be preserved (not overwritten)
+            assert net_existing in kwargs["json_data"]["networkIds"]
+            # name must be included in the PUT body
+            assert kwargs["json_data"]["name"] == "LAN"
 
     @pytest.mark.asyncio
     async def test_assign_network_to_zone_already_assigned(self, mock_settings):
         from src.tools.firewall_zones import assign_network_to_zone
 
-        zone_data = {"data": {"networkIds": ["net-001", "net-002"]}}
+        net_001 = "aaaaaaaa-bbbb-cccc-dddd-000000000001"
+        net_002 = "aaaaaaaa-bbbb-cccc-dddd-000000000002"
+        zone_data = {"networkIds": [net_001, net_002], "name": "LAN"}
 
         with patch("src.tools.firewall_zones.UniFiClient") as mock_client:
             mock_instance = AsyncMock()
@@ -418,19 +428,20 @@ class TestAssignNetworkToZone:
             result = await assign_network_to_zone(
                 "default",
                 "zone-001",
-                "net-001",
+                net_001,
                 mock_settings,
                 confirm=True,
             )
 
-            assert result["network_id"] == "net-001"
+            assert result["network_id"] == net_001
             mock_instance.put.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_assign_network_to_zone_dry_run(self, mock_settings):
         from src.tools.firewall_zones import assign_network_to_zone
 
-        zone_data = {"data": {"networkIds": []}}
+        net_new = "aaaaaaaa-bbbb-cccc-dddd-000000000099"
+        zone_data = {"networkIds": [], "name": "LAN"}
 
         with patch("src.tools.firewall_zones.UniFiClient") as mock_client:
             mock_instance = AsyncMock()
@@ -443,7 +454,7 @@ class TestAssignNetworkToZone:
             result = await assign_network_to_zone(
                 "default",
                 "zone-001",
-                "net-new",
+                net_new,
                 mock_settings,
                 confirm=True,
                 dry_run=True,
