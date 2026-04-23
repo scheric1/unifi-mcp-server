@@ -33,7 +33,7 @@ async def list_radius_profiles(
         await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/radius/profiles")
-        profiles_data: list[dict[str, Any]] = response.get("data", [])
+        profiles_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
         # Apply pagination
         paginated = profiles_data[offset : offset + limit]
@@ -67,7 +67,7 @@ async def list_device_tags(
         await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/device-tags")
-        tags_data: list[dict[str, Any]] = response.get("data", [])
+        tags_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
         # Apply pagination
         paginated = tags_data[offset : offset + limit]
@@ -98,7 +98,7 @@ async def list_countries(
         await client.authenticate()
 
         response = await client.get("/integration/v1/countries")
-        countries_data: list[dict[str, Any]] = response.get("data", [])
+        countries_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
         # Apply pagination
         paginated = countries_data[offset : offset + limit]

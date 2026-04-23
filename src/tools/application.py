@@ -31,7 +31,11 @@ async def get_application_info(settings: Settings) -> dict:
         response = await client.get("/integration/v1/application/info")
 
         # Extract data from response
-        data = response.get("data", response)
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         return {
             "version": data.get("version"),

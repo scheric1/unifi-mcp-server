@@ -330,6 +330,17 @@ async def update_wlan(
     if vlan_id is not None and not 1 <= vlan_id <= 4094:
         raise ValidationError(f"Invalid VLAN ID {vlan_id}. Must be between 1 and 4094")
 
+    # Validate WLAN bands if provided
+    if wlan_bands is not None:
+        valid_bands = {"2g", "5g", "6g"}
+        invalid = set(wlan_bands) - valid_bands
+        if invalid:
+            raise ValidationError(
+                f"Invalid WLAN band(s): {invalid}. Must be from: {valid_bands}"
+            )
+        if not wlan_bands:
+            raise ValidationError("wlan_bands must contain at least one band")
+
     parameters = {
         "site_id": site_id,
         "wlan_id": wlan_id,

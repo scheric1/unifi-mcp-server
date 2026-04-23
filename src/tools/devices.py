@@ -278,7 +278,7 @@ async def list_pending_devices(
         response = await client.get(
             f"/integration/v1/sites/{site_id}/devices/pending", params=params
         )
-        devices_data = response.get("data", [])
+        devices_data = response if isinstance(response, list) else response.get("data", [])
 
         # Parse into Device models
         devices = [Device(**d).model_dump() for d in devices_data]
@@ -327,7 +327,11 @@ async def adopt_device(
         response = await client.post(
             f"/integration/v1/sites/{site_id}/devices/{device_id}/adopt", json_data=payload
         )
-        data = response.get("data", response)
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         # Audit the action
         await audit_action(
@@ -395,7 +399,11 @@ async def execute_port_action(
             f"/integration/v1/sites/{site_id}/devices/{device_id}/ports/{port_idx}/action",
             json_data=payload,
         )
-        data = response.get("data", response)
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         # Audit the action
         await audit_action(

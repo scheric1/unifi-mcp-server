@@ -342,7 +342,11 @@ async def update_acl_rule(
             ),
             json_data=payload,
         )
-        data = response.get("data", response)
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         # Audit the action
         await audit_action(

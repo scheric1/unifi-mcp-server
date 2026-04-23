@@ -115,7 +115,12 @@ async def create_firewall_zone(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones"),
             json_data=payload,
         )
-        data = response.get("data", response)
+        # Handle both list and dict responses - single object expected
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         # Audit the action
         await audit_action(
@@ -175,7 +180,11 @@ async def update_firewall_zone(
                 f"sites/{resolved_site_id}/firewall/zones/{firewall_zone_id}"
             )
         )
-        current_zone = current_zone_response.get("data", current_zone_response)
+        if isinstance(current_zone_response, list):
+            current_zone = current_zone_response[0] if current_zone_response else {}
+        else:
+            _raw = current_zone_response.get("data", current_zone_response)
+            current_zone = _raw[0] if isinstance(_raw, list) else _raw
         current_network_ids = current_zone.get("networkIds", [])
 
         # Build request payload - networkIds is required by API. `description`
@@ -206,7 +215,11 @@ async def update_firewall_zone(
             ),
             json_data=payload,
         )
-        data = response.get("data", response)
+        if isinstance(response, list):
+            data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            data = _raw[0] if isinstance(_raw, list) else _raw
 
         # Audit the action
         await audit_action(
@@ -261,7 +274,11 @@ async def assign_network_to_zone(
             network_response = await client.get(
                 settings.get_integration_path(f"sites/{resolved_site_id}/networks/{network_id}")
             )
-            network_data = network_response.get("data", {})
+            if isinstance(network_response, list):
+                network_data = network_response[0] if network_response else {}
+            else:
+                _raw = network_response.get("data", network_response)
+                network_data = _raw[0] if isinstance(_raw, list) else _raw
             network_name = network_data.get("name")
         except Exception:
             logger.warning(sanitize_log_message(f"Could not fetch network name for {network_id}"))
@@ -270,7 +287,11 @@ async def assign_network_to_zone(
         zone_response = await client.get(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
-        zone_data = zone_response.get("data", {})
+        if isinstance(zone_response, list):
+            zone_data = zone_response[0] if zone_response else {}
+        else:
+            _raw = zone_response.get("data", zone_response)
+            zone_data = _raw[0] if isinstance(_raw, list) else _raw
         current_networks = zone_data.get("networkIds", [])
 
         if network_id in current_networks:
@@ -335,7 +356,11 @@ async def get_zone_networks(site_id: str, zone_id: str, settings: Settings) -> l
         response = await client.get(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
-        zone_data = response.get("data", {})
+        if isinstance(response, list):
+            zone_data = response[0] if response else {}
+        else:
+            _raw = response.get("data", response)
+            zone_data = _raw[0] if isinstance(_raw, list) else _raw
         network_ids = zone_data.get("networkIds", [])
 
         # Fetch network details for each network ID
@@ -345,7 +370,11 @@ async def get_zone_networks(site_id: str, zone_id: str, settings: Settings) -> l
                 network_response = await client.get(
                     settings.get_integration_path(f"sites/{resolved_site_id}/networks/{network_id}")
                 )
-                network_data = network_response.get("data", {})
+                if isinstance(network_response, list):
+                    network_data = network_response[0] if network_response else {}
+                else:
+                    _raw = network_response.get("data", network_response)
+                    network_data = _raw[0] if isinstance(_raw, list) else _raw
                 networks.append(
                     ZoneNetworkAssignment(
                         zone_id=zone_id,
@@ -459,7 +488,11 @@ async def unassign_network_from_zone(
         zone_response = await client.get(
             settings.get_integration_path(f"sites/{resolved_site_id}/firewall/zones/{zone_id}")
         )
-        zone_data = zone_response.get("data", {})
+        if isinstance(zone_response, list):
+            zone_data = zone_response[0] if zone_response else {}
+        else:
+            _raw = zone_response.get("data", zone_response)
+            zone_data = _raw[0] if isinstance(_raw, list) else _raw
         current_networks = zone_data.get("networkIds", [])
 
         if network_id not in current_networks:

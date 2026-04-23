@@ -134,7 +134,8 @@ async def create_network(
             if isinstance(response, list):
                 created_network: dict[str, Any] = response[0] if response else {}
             else:
-                created_network = response.get("data", [{}])[0]
+                _raw = response.get("data", response)
+                created_network: dict[str, Any] = _raw[0] if isinstance(_raw, list) else _raw
 
             logger.info(sanitize_log_message(f"Created network '{name}' in site '{site_id}'"))
             log_audit(
@@ -241,10 +242,7 @@ async def update_network(
 
             # Get existing network
             response = await client.get(f"/ea/sites/{site_id}/rest/networkconf")
-            if isinstance(response, list):
-                networks_data: list[dict[str, Any]] = response
-            else:
-                networks_data = response.get("data", [])
+            networks_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
             existing_network = None
             for network in networks_data:
@@ -288,7 +286,8 @@ async def update_network(
             if isinstance(response, list):
                 updated_network: dict[str, Any] = response[0] if response else {}
             else:
-                updated_network = response.get("data", [{}])[0]
+                _raw = response.get("data", response)
+                updated_network: dict[str, Any] = _raw[0] if isinstance(_raw, list) else _raw
 
             logger.info(sanitize_log_message(f"Updated network '{network_id}' in site '{site_id}'"))
             log_audit(
@@ -357,10 +356,7 @@ async def delete_network(
 
             # Verify network exists before deleting
             response = await client.get(f"/ea/sites/{site_id}/rest/networkconf")
-            if isinstance(response, list):
-                networks_data: list[dict[str, Any]] = response
-            else:
-                networks_data = response.get("data", [])
+            networks_data: list[dict[str, Any]] = response if isinstance(response, list) else response.get("data", [])
 
             network_exists = any(net.get("_id") == network_id for net in networks_data)
             if not network_exists:

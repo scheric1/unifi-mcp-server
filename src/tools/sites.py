@@ -135,21 +135,9 @@ async def get_site_statistics(site_id: str, settings: Settings) -> dict[str, Any
         clients_response = await client.get(f"/ea/sites/{site_id}/sta")
         networks_response = await client.get(f"/ea/sites/{site_id}/rest/networkconf")
 
-        devices_data = (
-            devices_response.get("data", [])
-            if isinstance(devices_response, dict)
-            else devices_response
-        )
-        clients_data = (
-            clients_response.get("data", [])
-            if isinstance(clients_response, dict)
-            else clients_response
-        )
-        networks_data = (
-            networks_response.get("data", [])
-            if isinstance(networks_response, dict)
-            else networks_response
-        )
+        devices_data = devices_response if isinstance(devices_response, list) else devices_response.get("data", [])
+        clients_data = clients_response if isinstance(clients_response, list) else clients_response.get("data", [])
+        networks_data = networks_response if isinstance(networks_response, list) else networks_response.get("data", [])
 
         # Count device types
         ap_count = sum(1 for d in devices_data if d.get("type") == "uap")

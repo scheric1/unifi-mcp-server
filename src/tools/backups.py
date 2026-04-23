@@ -117,7 +117,11 @@ async def trigger_backup(
 
             # Extract backup information from response
             # Response format: {"data": {"url": "/data/backup/filename.unf", "id": "..."}}
-            backup_data = response.get("data", {})
+            if isinstance(response, list):
+                backup_data = response[0] if response else {}
+            else:
+                _raw = response.get("data", response)
+                backup_data = _raw[0] if isinstance(_raw, list) else _raw
             download_url = backup_data.get("url", "")
             backup_id = backup_data.get("id", "")
 

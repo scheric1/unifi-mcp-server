@@ -25,6 +25,6 @@ async def list_wan_connections(site_id: str, settings: Settings) -> list[dict]:
             await client.authenticate()
 
         response = await client.get(f"/integration/v1/sites/{site_id}/wans")
-        data = response.get("data", [])
+        data = response if isinstance(response, list) else response.get("data", [])
 
         return [WANConnection(**wan).model_dump() for wan in data]
