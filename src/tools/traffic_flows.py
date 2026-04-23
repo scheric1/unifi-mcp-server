@@ -1,286 +1,720 @@
-"""Traffic flow monitoring tools."""
+from __future__ import annotations
 
-import asyncio
+"""Traffic flow monitoring tools (local v2 API).
+
+The UniFi Integration API (``/proxy/network/integration/v1/...``) does **not**
+expose traffic flow data on any documented endpoint or firmware. Flow data is
+only available via the local private v2 endpoint
+``POST /proxy/network/v2/api/site/{site_id}/traffic-flows``, which is the
+endpoint the UniFi Network web UI uses internally. It returns up to 50 of the
+most recently-completed flows with full source/destination metadata, matched
+firewall policies, byte counters, and risk classification.
+
+Key constraints of the v2 endpoint, verified live against a UDM Pro running
+UniFi Network 10.2.x:
+
+* Hard cap at 50 flows per call; ``limit`` / ``offset`` / ``page_size`` /
+  ``duration`` / ``start`` parameters are accepted but ignored.
+* The response is a rolling snapshot of the latest completed flows, so
+  repeated calls return different IDs as new flows arrive.
+* Server-side filter keys (``source_zone_ids``, ``protocols``, ``actions``,
+  ``risks``, etc.) are accepted but **non-functional** — they pass syntax
+  validation but do not actually narrow the result set. All filtering must
+  therefore be performed client-side after fetching the sample.
+
+Because this endpoint is only reachable via the local gateway proxy, every
+function in this module calls :func:`_ensure_local_api` and raises
+``NotImplementedError`` when the MCP is configured for cloud-only API access.
+"""
+
 import csv
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from io import StringIO
-from typing import Any, Literal
+from typing import Any
 from uuid import uuid4
 
 from ..api.client import UniFiClient
-from ..config import Settings
+from ..config import APIType, Settings
 from ..models.traffic_flow import (
     BlockFlowAction,
     ClientFlowAggregation,
-    ConnectionState,
-    FlowRisk,
+    FlowRuleReferenceMatch,
     FlowStatistics,
-    FlowStreamUpdate,
     TrafficFlow,
 )
-from ..utils import audit_action, get_logger, sanitize_log_message, validate_confirmation
+from ..utils import (
+    APIError,
+    ResourceNotFoundError,
+    audit_action,
+    get_logger,
+    sanitize_log_message,
+    validate_confirmation,
+)
 
 logger = get_logger(__name__)
+
+
+# --------------------------------------------------------------------------- #
+# Low-level helpers                                                           #
+# --------------------------------------------------------------------------- #
+
+
+def _ensure_local_api(settings: Settings) -> None:
+    """Flow endpoints are only reachable via the local gateway proxy."""
+    if settings.api_type != APIType.LOCAL:
+        raise NotImplementedError(
+            "Traffic flow tools require UNIFI_API_TYPE='local'. The UniFi "
+            "Integration API does not expose flow data; it is only available "
+            "through the local gateway's v2 endpoint at "
+            "/proxy/network/v2/api/site/{site}/traffic-flows."
+        )
+
+
+async def _fetch_raw_flows(
+    client: UniFiClient, settings: Settings, site_id: str
+) -> list[dict[str, Any]]:
+    """Hit the v2 traffic-flows endpoint and return the raw flow dicts.
+
+    The endpoint ignores pagination/filter params so we always send an empty
+    body and apply filtering client-side in the public wrappers below.
+    """
+    endpoint = f"{settings.get_v2_api_path(site_id)}/traffic-flows"
+    response = await client.post(endpoint, json_data={})
+    if isinstance(response, list):
+        return [f for f in response if isinstance(f, dict)]
+    if isinstance(response, dict):
+        inner = response.get("data")
+        if isinstance(inner, list):
+            return [f for f in inner if isinstance(f, dict)]
+    return []
+
+
+def _parse_flow(raw: dict[str, Any]) -> TrafficFlow:
+    """Parse a raw v2 flow dict into a ``TrafficFlow`` pydantic model."""
+    return TrafficFlow(**raw)
+
+
+def _flow_matches(
+    flow: TrafficFlow,
+    *,
+    source_mac: str | None = None,
+    source_ip: str | None = None,
+    source_zone_name: str | None = None,
+    source_network_name: str | None = None,
+    destination_ip: str | None = None,
+    destination_port: int | None = None,
+    destination_zone_name: str | None = None,
+    destination_network_name: str | None = None,
+    protocol: str | None = None,
+    action: str | None = None,
+    direction: str | None = None,
+    risk: str | None = None,
+    min_bytes: int | None = None,
+    client_name_contains: str | None = None,
+) -> bool:
+    """Client-side filter predicate used by every public fetch function.
+
+    Note on inter-VLAN filtering: UniFi labels the ``destination.zone_name``
+    of any inter-VLAN flow as ``"Gateway"`` rather than the target VLAN's
+    zone — the flow engine sees it as "entered the gateway's routing
+    table", which is literally true since routing happens on the gateway.
+    To find flows crossing VLAN boundaries, filter by
+    ``destination_network_name`` (the target VLAN's display name) rather
+    than ``destination_zone_name``. The ``destination_zone_name`` filter
+    only returns useful results for egress flows to ``External``.
+    """
+    src = flow.source
+    dst = flow.destination
+
+    if source_mac is not None:
+        candidate = (src.mac or src.id or "").lower()
+        if candidate != source_mac.lower():
+            return False
+    if source_ip is not None and src.ip != source_ip:
+        return False
+    if source_zone_name is not None and (
+        (src.zone_name or "").lower() != source_zone_name.lower()
+    ):
+        return False
+    if source_network_name is not None and (
+        (src.network_name or "").lower() != source_network_name.lower()
+    ):
+        return False
+    if destination_ip is not None and dst.ip != destination_ip:
+        return False
+    if destination_port is not None and dst.port != destination_port:
+        return False
+    if destination_zone_name is not None and (
+        (dst.zone_name or "").lower() != destination_zone_name.lower()
+    ):
+        return False
+    if destination_network_name is not None and (
+        (dst.network_name or "").lower() != destination_network_name.lower()
+    ):
+        return False
+    if protocol is not None and (flow.protocol or "").upper() != protocol.upper():
+        return False
+    if action is not None and (flow.action or "").lower() != action.lower():
+        return False
+    if direction is not None and (flow.direction or "").lower() != direction.lower():
+        return False
+    if risk is not None and (flow.risk or "").lower() != risk.lower():
+        return False
+    if min_bytes is not None and flow.traffic_data.bytes_total < min_bytes:
+        return False
+    if client_name_contains is not None and client_name_contains.lower() not in (
+        (src.client_name or "").lower()
+    ):
+        return False
+    return True
+
+
+async def _get_filtered_flows(
+    site_id: str,
+    settings: Settings,
+    **filters: Any,
+) -> list[TrafficFlow]:
+    """Fetch the latest 50 flows and apply client-side filters."""
+    _ensure_local_api(settings)
+
+    async with UniFiClient(settings) as client:
+        if not client.is_authenticated:
+            await client.authenticate()
+
+        try:
+            raw_flows = await _fetch_raw_flows(client, settings, site_id)
+        except APIError:
+            logger.exception(
+                sanitize_log_message(
+                    f"Failed to fetch traffic flows for site {site_id}"
+                )
+            )
+            raise
+
+        flows: list[TrafficFlow] = []
+        for raw in raw_flows:
+            try:
+                flow = _parse_flow(raw)
+            except Exception as exc:
+                logger.debug(
+                    sanitize_log_message(
+                        f"Skipping unparseable flow record: {exc}"
+                    )
+                )
+                continue
+            if _flow_matches(flow, **filters):
+                flows.append(flow)
+        return flows
+
+
+# --------------------------------------------------------------------------- #
+# Public fetch tools                                                          #
+# --------------------------------------------------------------------------- #
 
 
 async def get_traffic_flows(
     site_id: str,
     settings: Settings,
+    source_mac: str | None = None,
     source_ip: str | None = None,
+    source_zone_name: str | None = None,
+    source_network_name: str | None = None,
     destination_ip: str | None = None,
+    destination_port: int | None = None,
+    destination_zone_name: str | None = None,
+    destination_network_name: str | None = None,
     protocol: str | None = None,
-    application_id: str | None = None,
-    time_range: str = "24h",
+    action: str | None = None,
+    direction: str | None = None,
+    risk: str | None = None,
+    min_bytes: int | None = None,
+    client_name_contains: str | None = None,
     limit: int | None = None,
-    offset: int | None = None,
-) -> list[dict]:
-    """Retrieve real-time traffic flows.
+) -> list[dict[str, Any]]:
+    """Retrieve recent traffic flows from the UniFi controller.
+
+    Fetches up to 50 most-recent completed flows from the local v2 endpoint
+    and applies client-side filters. All filter parameters are optional; pass
+    any combination to narrow the result set.
 
     Args:
         site_id: Site identifier
-        settings: Application settings
+        settings: Application settings (must be configured for local API)
+        source_mac: Filter by source MAC address (case-insensitive)
         source_ip: Filter by source IP
+        source_zone_name: Filter by source firewall zone name (e.g. "Internal")
+        source_network_name: Filter by source VLAN display name (e.g. "Internal - Data")
         destination_ip: Filter by destination IP
-        protocol: Filter by protocol (tcp/udp/icmp)
-        application_id: Filter by DPI application ID
-        time_range: Time range for flows (1h, 6h, 12h, 24h, 7d, 30d)
-        limit: Maximum number of flows to return
-        offset: Number of flows to skip
+        destination_port: Filter by destination port
+        destination_zone_name: Filter by destination zone name. **Warning:**
+            UniFi labels inter-VLAN destination zones as ``"Gateway"`` rather
+            than the target VLAN's zone, so this filter is only useful for
+            egress flows to ``"External"``. For inter-VLAN flows, use
+            ``destination_network_name`` instead.
+        destination_network_name: Filter by destination VLAN display name
+            (e.g. ``"Server - Data"``). This is the correct filter for
+            discovering inter-VLAN traffic.
+        protocol: Filter by transport protocol ("TCP", "UDP", "ICMP", ...)
+        action: Filter by firewall action ("allowed", "blocked")
+        direction: Filter by flow direction ("outgoing", "incoming")
+        risk: Filter by risk classification ("low", "medium", "high", ...)
+        min_bytes: Only include flows with at least this many total bytes
+        client_name_contains: Substring match against source client_name
+        limit: Cap on the number of returned flows (after filtering)
 
     Returns:
-        List of traffic flows
+        List of flow dictionaries. Each dict has the full v2 schema —
+        ``source``, ``destination``, ``traffic_data``, ``policies``, etc.
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving traffic flows for site {site_id}"))
+    flows = await _get_filtered_flows(
+        site_id,
+        settings,
+        source_mac=source_mac,
+        source_ip=source_ip,
+        source_zone_name=source_zone_name,
+        source_network_name=source_network_name,
+        destination_ip=destination_ip,
+        destination_port=destination_port,
+        destination_zone_name=destination_zone_name,
+        destination_network_name=destination_network_name,
+        protocol=protocol,
+        action=action,
+        direction=direction,
+        risk=risk,
+        min_bytes=min_bytes,
+        client_name_contains=client_name_contains,
+    )
 
+    logger.info(
+        sanitize_log_message(
+            f"Retrieved {len(flows)} traffic flows for site {site_id}"
+        )
+    )
+
+    results = [flow.model_dump(by_alias=True) for flow in flows]
+    if limit is not None:
+        return results[:limit]
+    return results
+
+
+async def get_flow_statistics(
+    site_id: str,
+    settings: Settings,
+    source_mac: str | None = None,
+    source_zone_name: str | None = None,
+    destination_zone_name: str | None = None,
+    protocol: str | None = None,
+    action: str | None = None,
+) -> dict[str, Any]:
+    """Aggregate statistics over the current flow sample.
+
+    The result describes the rolling 50-flow snapshot (optionally narrowed
+    by the same client-side filters as :func:`get_traffic_flows`). There is
+    no "time range" — the v2 endpoint does not support historical windows.
+    """
+    flows = await _get_filtered_flows(
+        site_id,
+        settings,
+        source_mac=source_mac,
+        source_zone_name=source_zone_name,
+        destination_zone_name=destination_zone_name,
+        protocol=protocol,
+        action=action,
+    )
+
+    total_bytes_tx = sum(f.traffic_data.bytes_tx for f in flows)
+    total_bytes_rx = sum(f.traffic_data.bytes_rx for f in flows)
+    total_bytes = sum(f.traffic_data.bytes_total for f in flows)
+    total_packets = sum(f.traffic_data.packets_total for f in flows)
+
+    unique_sources = {
+        f.source.id or f.source.mac or f.source.ip for f in flows if _has_any_identifier(f.source)
+    }
+    unique_destinations = {f.destination.ip for f in flows if f.destination.ip}
+
+    protocol_breakdown: dict[str, int] = {}
+    action_breakdown: dict[str, int] = {}
+    for flow in flows:
+        protocol_breakdown[flow.protocol] = protocol_breakdown.get(flow.protocol, 0) + 1
+        action_breakdown[flow.action] = action_breakdown.get(flow.action, 0) + 1
+
+    top_destinations = _rank_destinations(flows, limit=5)
+
+    stats = FlowStatistics(
+        site_id=site_id,
+        sample_size=len(flows),
+        total_flows=len(flows),
+        total_bytes=total_bytes,
+        total_bytes_tx=total_bytes_tx,
+        total_bytes_rx=total_bytes_rx,
+        total_packets=total_packets,
+        unique_sources=len(unique_sources),
+        unique_destinations=len(unique_destinations),
+        protocol_breakdown=protocol_breakdown,
+        action_breakdown=action_breakdown,
+        top_destinations=top_destinations,
+    )
+    return stats.model_dump()
+
+
+async def get_traffic_flow_details(
+    site_id: str,
+    flow_id: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Find a specific flow in the current 50-flow snapshot.
+
+    Raises :class:`ResourceNotFoundError` if the flow has rolled out of the
+    window (the v2 endpoint has no "fetch by id" lookup).
+    """
+    _ensure_local_api(settings)
+
+    async with UniFiClient(settings) as client:
         if not client.is_authenticated:
             await client.authenticate()
 
-        params: dict[str, Any] = {"time_range": time_range}
-        if source_ip:
-            params["source_ip"] = source_ip
-        if destination_ip:
-            params["destination_ip"] = destination_ip
-        if protocol:
-            params["protocol"] = protocol
-        if application_id:
-            params["application_id"] = application_id
-        if limit:
-            params["limit"] = limit
-        if offset:
-            params["offset"] = offset
+        raw_flows = await _fetch_raw_flows(client, settings, site_id)
+        for raw in raw_flows:
+            if raw.get("id") == flow_id:
+                return _parse_flow(raw).model_dump(by_alias=True)
 
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows"
-                ),
-                params=params,
-            )
-            data = response.get("data", []) if isinstance(response, dict) else response
-        except Exception as e:
-            logger.warning(sanitize_log_message(f"Traffic flows endpoint not available: {e}"))
-            return []
-
-        return [TrafficFlow(**flow).model_dump() for flow in data]
-
-
-async def get_flow_statistics(site_id: str, settings: Settings, time_range: str = "24h") -> dict:
-    """Get aggregate flow statistics.
-
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        time_range: Time range for statistics (1h, 6h, 12h, 24h, 7d, 30d)
-
-    Returns:
-        Flow statistics
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving flow statistics for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows/statistics"
-                ),
-                params={"time_range": time_range},
-            )
-            # UniFiClient normalises `{"data": [...]}` → raw list and
-            # `{"data": {...}}` → inner dict, but some firmware returns
-            # wrapped payloads untouched. Handle all three shapes.
-            if isinstance(response, list):
-                data = response[0] if response else {}
-            elif isinstance(response, dict):
-                data = response.get("data", response)
-                if isinstance(data, list):
-                    data = data[0] if data else {}
-            else:
-                data = {}
-        except Exception as e:
-            logger.warning(sanitize_log_message(f"Flow statistics endpoint not available: {e}"))
-            # Return empty statistics
-            return FlowStatistics(  # type: ignore[no-any-return]
-                site_id=site_id,
-                time_range=time_range,
-                total_flows=0,
-                total_bytes_sent=0,
-                total_bytes_received=0,
-                total_bytes=0,
-                total_packets_sent=0,
-                total_packets_received=0,
-                unique_sources=0,
-                unique_destinations=0,
-            ).model_dump()
-
-        # Handle empty response (no traffic data)
-        if not data or data == {}:
-            logger.info(sanitize_log_message(f"No flow statistics available for site {site_id}"))
-            return FlowStatistics(  # type: ignore[no-any-return]
-                site_id=site_id,
-                time_range=time_range,
-                total_flows=0,
-                total_bytes_sent=0,
-                total_bytes_received=0,
-                total_bytes=0,
-                total_packets_sent=0,
-                total_packets_received=0,
-                unique_sources=0,
-                unique_destinations=0,
-            ).model_dump()
-
-        return FlowStatistics(**data).model_dump()  # type: ignore[no-any-return]
-
-
-async def get_traffic_flow_details(site_id: str, flow_id: str, settings: Settings) -> dict:
-    """Get details for a specific traffic flow.
-
-    Args:
-        site_id: Site identifier
-        flow_id: Flow identifier
-        settings: Application settings
-
-    Returns:
-        Traffic flow details
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving traffic flow {flow_id} for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows/{flow_id}"
-                )
-            )
-            data = response.get("data", response)
-        except Exception as e:
-            logger.warning(sanitize_log_message(f"Traffic flow details endpoint not available: {e}"))
-            raise
-
-        return TrafficFlow(**data).model_dump()  # type: ignore[no-any-return]
+        raise ResourceNotFoundError("traffic_flow", flow_id)
 
 
 async def get_top_flows(
     site_id: str,
     settings: Settings,
     limit: int = 10,
-    time_range: str = "24h",
     sort_by: str = "bytes",
-) -> list[dict]:
-    """Get top bandwidth-consuming flows.
+) -> list[dict[str, Any]]:
+    """Return the top N flows in the current sample, sorted by volume.
 
     Args:
-        site_id: Site identifier
-        settings: Application settings
-        limit: Number of top flows to return
-        time_range: Time range for flows
-        sort_by: Sort by field (bytes, packets, duration)
-
-    Returns:
-        List of top flows
+        sort_by: ``"bytes"`` (default), ``"packets"``, or ``"duration"``.
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving top flows for site {site_id}"))
+    flows = await _get_filtered_flows(site_id, settings)
 
-        if not client.is_authenticated:
-            await client.authenticate()
+    def _key(flow: TrafficFlow) -> int:
+        if sort_by == "packets":
+            return flow.traffic_data.packets_total
+        if sort_by == "duration":
+            return flow.duration_milliseconds or 0
+        return flow.traffic_data.bytes_total
 
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows/top"
-                ),
-                params={"limit": limit, "time_range": time_range, "sort_by": sort_by},
-            )
-            data = response.get("data", []) if isinstance(response, dict) else response
-        except Exception:
-            # Fallback: get all flows and sort manually
-            logger.info("Top flows endpoint not available, fetching all flows")
-            flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-            # Sort by total bytes
-            sorted_flows = sorted(
-                flows,
-                key=lambda x: x.get("bytes_sent", 0) + x.get("bytes_received", 0),
-                reverse=True,
-            )
-            return sorted_flows[:limit]
-
-        return [TrafficFlow(**flow).model_dump() for flow in data]
+    sorted_flows = sorted(flows, key=_key, reverse=True)[:limit]
+    return [flow.model_dump(by_alias=True) for flow in sorted_flows]
 
 
 async def get_flow_risks(
     site_id: str,
     settings: Settings,
-    time_range: str = "24h",
     min_risk_level: str | None = None,
-) -> list[dict]:
-    """Get risk assessment for flows.
+) -> list[dict[str, Any]]:
+    """Return flows filtered by risk classification.
+
+    The v2 endpoint reports risk inline on each flow (``low``/``medium``/
+    ``high``/``critical``). ``min_risk_level`` keeps everything at or above
+    the given level.
+    """
+    order = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    threshold = order.get((min_risk_level or "").lower(), 0)
+
+    flows = await _get_filtered_flows(site_id, settings)
+    matching = [
+        flow
+        for flow in flows
+        if order.get((flow.risk or "").lower(), 0) >= threshold
+    ]
+    return [flow.model_dump(by_alias=True) for flow in matching]
+
+
+async def filter_traffic_flows(
+    site_id: str,
+    settings: Settings,
+    filter_expression: str,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Client-side filter by a simple ``key=value`` expression list.
+
+    Accepts comma-separated ``key=value`` pairs, for example
+    ``"protocol=UDP,destination_zone_name=External,min_bytes=1000"``. Any
+    key recognised by :func:`get_traffic_flows` may be used.
+    """
+    parsed: dict[str, Any] = {}
+    for chunk in (part.strip() for part in filter_expression.split(",")):
+        if not chunk or "=" not in chunk:
+            continue
+        key, value = chunk.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key in {"destination_port", "min_bytes"}:
+            try:
+                parsed[key] = int(value)
+            except ValueError:
+                continue
+        else:
+            parsed[key] = value
+
+    return await get_traffic_flows(site_id, settings, limit=limit, **parsed)
+
+
+async def get_client_flow_aggregation(
+    site_id: str,
+    client_mac: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """Aggregate the current flow sample for a specific client MAC."""
+    flows = await _get_filtered_flows(
+        site_id, settings, source_mac=client_mac
+    )
+
+    if not flows:
+        return ClientFlowAggregation(
+            client_mac=client_mac,
+            site_id=site_id,
+            sample_size=0,
+        ).model_dump()
+
+    client_ip = flows[0].source.ip
+    client_name = flows[0].source.client_name
+    total_bytes = sum(f.traffic_data.bytes_total for f in flows)
+    total_packets = sum(f.traffic_data.packets_total for f in flows)
+
+    protocol_breakdown: dict[str, int] = {}
+    for flow in flows:
+        protocol_breakdown[flow.protocol] = protocol_breakdown.get(flow.protocol, 0) + 1
+
+    return ClientFlowAggregation(
+        client_mac=client_mac,
+        client_name=client_name,
+        client_ip=client_ip,
+        site_id=site_id,
+        sample_size=len(flows),
+        total_bytes=total_bytes,
+        total_packets=total_packets,
+        top_destinations=_rank_destinations(flows, limit=5),
+        protocol_breakdown=protocol_breakdown,
+    ).model_dump()
+
+
+async def get_flow_analytics(
+    site_id: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    """High-level analytics over the current flow sample.
+
+    Returns counts, totals, protocol / action / risk breakdowns, and top
+    destinations in a single call. Thin wrapper over
+    :func:`get_flow_statistics` with an additional risk breakdown.
+    """
+    stats = await get_flow_statistics(site_id, settings)
+    flows = await _get_filtered_flows(site_id, settings)
+
+    risk_breakdown: dict[str, int] = {}
+    for flow in flows:
+        level = (flow.risk or "unknown").lower()
+        risk_breakdown[level] = risk_breakdown.get(level, 0) + 1
+
+    stats["risk_breakdown"] = risk_breakdown
+    return stats
+
+
+async def export_traffic_flows(
+    site_id: str,
+    settings: Settings,
+    export_format: str = "json",
+    max_records: int | None = None,
+) -> str:
+    """Serialise the current flow sample to JSON or CSV."""
+    if export_format not in {"json", "csv"}:
+        raise ValueError("export_format must be 'json' or 'csv'")
+
+    flows = await _get_filtered_flows(site_id, settings)
+    if max_records is not None:
+        flows = flows[:max_records]
+
+    if export_format == "json":
+        return json.dumps([f.model_dump(by_alias=True) for f in flows], indent=2)
+
+    buf = StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "flow_id",
+            "action",
+            "protocol",
+            "direction",
+            "source_mac",
+            "source_ip",
+            "source_port",
+            "source_zone",
+            "destination_ip",
+            "destination_port",
+            "destination_zone",
+            "bytes_total",
+            "packets_total",
+            "duration_ms",
+            "risk",
+        ]
+    )
+    for f in flows:
+        writer.writerow(
+            [
+                f.id,
+                f.action,
+                f.protocol,
+                f.direction,
+                f.source.mac or f.source.id or "",
+                f.source.ip or "",
+                f.source.port or "",
+                f.source.zone_name or "",
+                f.destination.ip or "",
+                f.destination.port or "",
+                f.destination.zone_name or "",
+                f.traffic_data.bytes_total,
+                f.traffic_data.packets_total,
+                f.duration_milliseconds or 0,
+                f.risk or "",
+            ]
+        )
+    return buf.getvalue()
+
+
+async def find_flows_for_rule_reference(
+    site_id: str,
+    settings: Settings,
+    source_zone_name: str | None = None,
+    destination_zone_name: str | None = None,
+    source_network_name: str | None = None,
+    destination_network_name: str | None = None,
+    source_mac: str | None = None,
+    protocol: str | None = None,
+    destination_port: int | None = None,
+    destination_ip: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Find flows matching a *draft* firewall rule intent.
+
+    Designed for the "should I create this rule?" workflow: given the
+    proposed match criteria for a new zone-based firewall policy or ACL
+    rule, this tool returns the real flows from the current snapshot that
+    the rule *would* have matched. The LLM can then inspect the concrete
+    traffic before committing to the rule.
+
+    Each result is a :class:`FlowRuleReferenceMatch` — trimmed to the
+    fields relevant for rule evaluation (zone/network/port/bytes/action).
+
+    **Inter-VLAN rule authoring note:** UniFi labels the destination zone
+    of inter-VLAN flows as ``"Gateway"`` rather than the target VLAN's
+    zone. To reference a rule intent like "Internal → Servers VLAN", pass
+    ``source_network_name`` / ``destination_network_name`` (the actual
+    VLAN display names) instead of the zone names. Zone names work for
+    egress flows to External but not for inter-VLAN traffic.
 
     Args:
         site_id: Site identifier
         settings: Application settings
-        time_range: Time range for flows
-        min_risk_level: Minimum risk level to include (low/medium/high/critical)
+        source_zone_name: Proposed source zone
+        destination_zone_name: Proposed destination zone (only useful for
+            ``External``; see the inter-VLAN note above)
+        source_network_name: Proposed source VLAN display name
+        destination_network_name: Proposed destination VLAN display name —
+            **use this for inter-VLAN rules**
+        source_mac: Proposed source client MAC
+        protocol: Proposed protocol
+        destination_port: Proposed destination port
+        destination_ip: Proposed destination IP
+        limit: Max matches to return (default 20, capped at 50 by the API)
 
     Returns:
-        List of flows with risk assessments
+        List of lightweight match records suitable for rendering to the user.
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving flow risks for site {site_id}"))
+    flows = await _get_filtered_flows(
+        site_id,
+        settings,
+        source_zone_name=source_zone_name,
+        destination_network_name=destination_network_name,
+        destination_zone_name=destination_zone_name,
+        source_network_name=source_network_name,
+        source_mac=source_mac,
+        protocol=protocol,
+        destination_port=destination_port,
+        destination_ip=destination_ip,
+    )
 
-        if not client.is_authenticated:
-            await client.authenticate()
+    matches = [_flow_to_reference_match(flow) for flow in flows[:limit]]
+    return [m.model_dump() for m in matches]
 
-        params = {"time_range": time_range}
-        if min_risk_level:
-            params["min_risk_level"] = min_risk_level
 
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows/risks"
-                ),
-                params=params,
-            )
-            data = response.get("data", []) if isinstance(response, dict) else response
-        except Exception:
-            logger.warning("Flow risks endpoint not available")
-            return []
+# --------------------------------------------------------------------------- #
+# Helpers for aggregation                                                     #
+# --------------------------------------------------------------------------- #
 
-        return [FlowRisk(**risk).model_dump() for risk in data]
+
+def _has_any_identifier(endpoint: Any) -> bool:
+    return bool(getattr(endpoint, "id", None) or getattr(endpoint, "mac", None) or getattr(endpoint, "ip", None))
+
+
+def _rank_destinations(
+    flows: Iterable[TrafficFlow], *, limit: int
+) -> list[dict[str, Any]]:
+    """Return the top destinations by total bytes in a flow sample."""
+    tally: dict[str, dict[str, Any]] = {}
+    for flow in flows:
+        ip = flow.destination.ip
+        if not ip:
+            continue
+        entry = tally.setdefault(
+            ip,
+            {
+                "ip": ip,
+                "port": flow.destination.port,
+                "zone_name": flow.destination.zone_name,
+                "region": flow.destination.region,
+                "bytes_total": 0,
+                "flow_count": 0,
+            },
+        )
+        entry["bytes_total"] += flow.traffic_data.bytes_total
+        entry["flow_count"] += 1
+    ranked = sorted(tally.values(), key=lambda e: e["bytes_total"], reverse=True)
+    return ranked[:limit]
+
+
+def _flow_to_reference_match(flow: TrafficFlow) -> FlowRuleReferenceMatch:
+    src_label = (
+        flow.source.client_name
+        or flow.source.mac
+        or flow.source.ip
+        or flow.source.id
+        or "unknown"
+    )
+    dst_label_parts = [
+        flow.destination.ip or flow.destination.id or "?",
+    ]
+    if flow.destination.zone_name:
+        dst_label_parts.append(f"({flow.destination.zone_name})")
+    dst_label = " ".join(dst_label_parts)
+    return FlowRuleReferenceMatch(
+        flow_id=flow.id,
+        source_label=str(src_label),
+        destination_label=dst_label,
+        protocol=flow.protocol,
+        destination_port=flow.destination.port,
+        bytes_total=flow.traffic_data.bytes_total,
+        action=flow.action,
+        source_zone_name=flow.source.zone_name,
+        destination_zone_name=flow.destination.zone_name,
+        source_network_name=flow.source.network_name,
+        flow_start_time=flow.flow_start_time,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Unsupported on the v2 endpoint                                              #
+# --------------------------------------------------------------------------- #
 
 
 async def get_flow_trends(
@@ -288,88 +722,19 @@ async def get_flow_trends(
     settings: Settings,
     time_range: str = "7d",
     interval: str = "1h",
-) -> list[dict]:
-    """Get historical flow trends.
+) -> list[dict[str, Any]]:
+    """Historical trends — **not supported** on the v2 endpoint.
 
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        time_range: Time range for trends (default: 7d)
-        interval: Time interval for data points (1h, 6h, 1d)
-
-    Returns:
-        List of trend data points
+    The v2 ``traffic-flows`` endpoint returns a rolling snapshot of the 50
+    most-recent completed flows; there is no historical query capability.
+    For aggregated time-series over longer windows, use the ``stat/report/*``
+    endpoints via other MCP tools (e.g. client bandwidth history).
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving flow trends for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows/trends"
-                ),
-                params={"time_range": time_range, "interval": interval},
-            )
-            data = response.get("data", []) if isinstance(response, dict) else response
-        except Exception:
-            logger.warning("Flow trends endpoint not available")
-            return []
-
-        return data  # type: ignore[no-any-return]
-
-
-async def filter_traffic_flows(
-    site_id: str,
-    settings: Settings,
-    filter_expression: str,
-    time_range: str = "24h",
-    limit: int | None = None,
-) -> list[dict]:
-    """Filter flows using a complex filter expression.
-
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        filter_expression: Filter expression (e.g., "bytes > 1000000 AND protocol = 'tcp'")
-        time_range: Time range for flows
-        limit: Maximum number of flows to return
-
-    Returns:
-        List of filtered traffic flows
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(
-            f"Filtering traffic flows for site {site_id} with expression: {filter_expression}"
-        )
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        params: dict[str, Any] = {"filter": filter_expression, "time_range": time_range}
-        if limit:
-            params["limit"] = limit
-
-        try:
-            resolved_site_id = await client.resolve_site_id(site_id)
-            response = await client.get(
-                settings.get_integration_path(
-                    f"sites/{resolved_site_id}/traffic/flows"
-                ),
-                params=params,
-            )
-            data = response.get("data", []) if isinstance(response, dict) else response
-        except Exception:
-            logger.warning("Filtered flows endpoint not available, using basic filtering")
-            # Fallback to basic filtering
-            flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-            # Simple filtering - in production, would use a proper query parser
-            return flows[:limit] if limit else flows
-
-        return [TrafficFlow(**flow).model_dump() for flow in data]
+    raise NotImplementedError(
+        "get_flow_trends is not supported: the v2 traffic-flows endpoint "
+        "does not expose historical time-series data. Use stat/report-based "
+        "tools for bandwidth trends."
+    )
 
 
 async def stream_traffic_flows(
@@ -377,264 +742,39 @@ async def stream_traffic_flows(
     settings: Settings,
     interval_seconds: int = 15,
     filter_expression: str | None = None,
-) -> AsyncGenerator[dict, None]:
-    """Stream real-time traffic flow updates.
+) -> Any:
+    """Streaming — **not supported** on the v2 endpoint.
 
-    This function attempts to use WebSocket for real-time updates,
-    falling back to polling if WebSocket is unavailable.
-
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        interval_seconds: Update interval in seconds (default: 15)
-        filter_expression: Optional filter expression
-
-    Yields:
-        Flow stream updates with bandwidth rates
+    With the hard 50-flow cap the endpoint can't be used as a streaming
+    source — fast networks roll through that window in well under a second.
+    Use :func:`get_traffic_flows` on a poll schedule instead.
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Starting traffic flow stream for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Track previous flows for rate calculation
-        previous_flows: dict[str, TrafficFlow] = {}
-
-        # Try WebSocket first (if available in future)
-        # For now, use polling fallback
-        logger.info(sanitize_log_message(f"Using polling fallback with {interval_seconds}s interval"))
-
-        while True:
-            try:
-                # Get current flows
-                params: dict[str, Any] = {}
-                if filter_expression:
-                    params["filter"] = filter_expression
-
-                resolved_site_id = await client.resolve_site_id(site_id)
-                response = await client.get(
-                    settings.get_integration_path(
-                        f"sites/{resolved_site_id}/traffic/flows"
-                    ),
-                    params=params,
-                )
-                data = response.get("data", []) if isinstance(response, dict) else response
-
-                current_time = datetime.now(timezone.utc).isoformat()
-
-                for flow_data in data:
-                    flow = TrafficFlow(**flow_data)
-                    flow_id = flow.flow_id
-
-                    # Determine update type
-                    if flow_id in previous_flows:
-                        update_type_str: Literal["new", "update", "closed"] = "update"
-                        # Calculate bandwidth rate
-                        prev_flow = previous_flows[flow_id]
-                        bytes_diff = (flow.bytes_sent + flow.bytes_received) - (
-                            prev_flow.bytes_sent + prev_flow.bytes_received
-                        )
-                        bandwidth_rate = {
-                            "bps": bytes_diff * 8 / interval_seconds,
-                            "upload_bps": (flow.bytes_sent - prev_flow.bytes_sent)
-                            * 8
-                            / interval_seconds,
-                            "download_bps": (flow.bytes_received - prev_flow.bytes_received)
-                            * 8
-                            / interval_seconds,
-                        }
-                    else:
-                        update_type_str = "new"
-                        bandwidth_rate = None
-
-                    # Create stream update
-                    update = FlowStreamUpdate(
-                        update_type=update_type_str,
-                        flow=flow,
-                        timestamp=current_time,
-                        bandwidth_rate=bandwidth_rate,
-                    )
-
-                    yield update.model_dump()
-
-                    # Update tracking
-                    previous_flows[flow_id] = flow
-
-                # Check for closed flows
-                current_flow_ids = {flow.flow_id for flow in data}
-                for prev_flow_id in list(previous_flows.keys()):
-                    if prev_flow_id not in current_flow_ids:
-                        closed_flow = previous_flows.pop(prev_flow_id)
-                        closed_update_type: Literal["new", "update", "closed"] = "closed"
-                        update = FlowStreamUpdate(
-                            update_type=closed_update_type,
-                            flow=closed_flow,
-                            timestamp=current_time,
-                            bandwidth_rate=None,
-                        )
-                        yield update.model_dump()
-
-                # Wait for next interval
-                await asyncio.sleep(interval_seconds)
-
-            except Exception as e:
-                logger.error(sanitize_log_message(f"Error in flow streaming: {e}"))
-                await asyncio.sleep(interval_seconds)
+    raise NotImplementedError(
+        "stream_traffic_flows is not supported: the v2 traffic-flows endpoint "
+        "caps responses at 50 flows with no pagination, so a streaming view "
+        "drops flows on busy networks. Poll get_traffic_flows instead."
+    )
 
 
 async def get_connection_states(
     site_id: str,
     settings: Settings,
-    time_range: str = "1h",
-) -> list[dict]:
-    """Get connection states for all flows.
+) -> list[dict[str, Any]]:
+    """Connection-state tracking — **not supported** on the v2 endpoint.
 
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        time_range: Time range for flows
-
-    Returns:
-        List of connection states
+    The v2 ``traffic-flows`` endpoint reports already-completed flows with
+    start/end timestamps, not a live connection table.
     """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving connection states for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flows
-        flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-
-        # Determine connection states
-        states = []
-        current_time = datetime.now(timezone.utc)
-
-        for flow in flows:
-            flow_obj = TrafficFlow(**flow)
-
-            # Determine state based on end_time
-            if flow_obj.end_time:
-                state_val: Literal["active", "closed", "timed_out"] = "closed"
-                termination_reason = "normal_closure"
-            else:
-                # Check if flow is timed out (no activity in last 5 minutes)
-                last_seen = datetime.fromisoformat(flow_obj.start_time.replace("Z", "+00:00"))
-                if (current_time - last_seen).total_seconds() > 300:
-                    state_val = "timed_out"
-                    termination_reason = "timeout"
-                else:
-                    state_val = "active"
-                    termination_reason = None
-
-            connection_state = ConnectionState(
-                flow_id=flow_obj.flow_id,
-                state=state_val,
-                last_seen=flow_obj.end_time or flow_obj.start_time,
-                total_duration=flow_obj.duration,
-                termination_reason=termination_reason,
-            )
-
-            states.append(connection_state.model_dump())
-
-        return states
+    raise NotImplementedError(
+        "get_connection_states is not supported: the v2 traffic-flows "
+        "endpoint does not report explicit connection states. It returns "
+        "completed flows with start/end timestamps only."
+    )
 
 
-async def get_client_flow_aggregation(
-    site_id: str,
-    client_mac: str,
-    settings: Settings,
-    time_range: str = "24h",
-) -> dict:
-    """Get aggregated flow data for a specific client.
-
-    Args:
-        site_id: Site identifier
-        client_mac: Client MAC address
-        settings: Application settings
-        time_range: Time range for aggregation
-
-    Returns:
-        Client flow aggregation data
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Retrieving flow aggregation for client {client_mac}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flows for this client
-        flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-        client_flows = [f for f in flows if f.get("client_mac") == client_mac]
-
-        # Get connection states
-        states = await get_connection_states(site_id, settings, time_range=time_range)
-        client_states = [
-            s for s in states if any(f["flow_id"] == s["flow_id"] for f in client_flows)
-        ]
-
-        # Aggregate statistics
-        total_bytes = sum(f.get("bytes_sent", 0) + f.get("bytes_received", 0) for f in client_flows)
-        total_packets = sum(
-            f.get("packets_sent", 0) + f.get("packets_received", 0) for f in client_flows
-        )
-
-        active_flows = len([s for s in client_states if s["state"] == "active"])
-        closed_flows = len([s for s in client_states if s["state"] == "closed"])
-
-        # Top applications
-        app_bytes: dict[str, int] = {}
-        for flow in client_flows:
-            app_name = flow.get("application_name", "Unknown")
-            app_bytes[app_name] = (
-                app_bytes.get(app_name, 0)
-                + flow.get("bytes_sent", 0)
-                + flow.get("bytes_received", 0)
-            )
-
-        top_applications = [
-            {"application": app, "bytes": bytes_val}
-            for app, bytes_val in sorted(app_bytes.items(), key=lambda x: x[1], reverse=True)[:10]
-        ]
-
-        # Top destinations
-        dest_bytes: dict[str, int] = {}
-        for flow in client_flows:
-            dest_ip = flow.get("destination_ip", "Unknown")
-            dest_bytes[dest_ip] = (
-                dest_bytes.get(dest_ip, 0)
-                + flow.get("bytes_sent", 0)
-                + flow.get("bytes_received", 0)
-            )
-
-        top_destinations = [
-            {"destination_ip": dest, "bytes": bytes_val}
-            for dest, bytes_val in sorted(dest_bytes.items(), key=lambda x: x[1], reverse=True)[:10]
-        ]
-
-        # Get client IP from first flow
-        client_ip = client_flows[0].get("source_ip") if client_flows else None
-
-        # Auth failures would come from a separate endpoint
-        # For now, set to 0 as placeholder
-        auth_failures = 0
-
-        aggregation = ClientFlowAggregation(
-            client_mac=client_mac,
-            client_ip=client_ip,
-            site_id=site_id,
-            total_flows=len(client_flows),
-            total_bytes=total_bytes,
-            total_packets=total_packets,
-            active_flows=active_flows,
-            closed_flows=closed_flows,
-            auth_failures=auth_failures,
-            top_applications=top_applications,
-            top_destinations=top_destinations,
-        )
-
-        return aggregation.model_dump()  # type: ignore[no-any-return]
+# --------------------------------------------------------------------------- #
+# Block-flow actions (create firewall rules)                                  #
+# --------------------------------------------------------------------------- #
 
 
 async def block_flow_source_ip(
@@ -645,97 +785,25 @@ async def block_flow_source_ip(
     expires_in_hours: int | None = None,
     confirm: bool | str = False,
     dry_run: bool | str = False,
-) -> dict:
-    """Block source IP address from a traffic flow.
-
-    Args:
-        site_id: Site identifier
-        flow_id: Flow identifier to block
-        settings: Application settings
-        duration: Block duration ("permanent" or "temporary")
-        expires_in_hours: Hours until expiration (for temporary blocks)
-        confirm: Confirmation flag (required)
-        dry_run: If True, validate but don't execute
-
-    Returns:
-        Block action result
-    """
+) -> dict[str, Any]:
+    """Create a firewall rule blocking the source IP of a specific flow."""
     validate_confirmation(confirm, "block flow source IP", dry_run)
 
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Blocking source IP from flow {flow_id}"))
+    flow_dict = await get_traffic_flow_details(site_id, flow_id, settings)
+    source_ip = (flow_dict.get("source") or {}).get("ip")
+    if not source_ip:
+        raise ValueError(f"No source IP found for flow {flow_id}")
 
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flow details
-        flow_data = await get_traffic_flow_details(site_id, flow_id, settings)
-        source_ip = flow_data.get("source_ip")
-
-        if not source_ip:
-            raise ValueError(f"No source IP found for flow {flow_id}")
-
-        # Calculate expiration
-        expires_at = None
-        if duration == "temporary" and expires_in_hours:
-            expires_at = (
-                datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
-            ).isoformat()
-
-        # Create firewall rule to block this IP
-        from .firewall import create_firewall_rule
-
-        rule_name = f"Block_{source_ip}_{flow_id[:8]}"
-
-        if dry_run:
-            logger.info(sanitize_log_message(f"[DRY RUN] Would block source IP {source_ip}"))
-            action_id = str(uuid4())
-            return BlockFlowAction(  # type: ignore[no-any-return]
-                action_id=action_id,
-                block_type="source_ip",
-                blocked_target=source_ip,
-                rule_id=None,
-                zone_id=None,
-                duration=duration,
-                expires_at=expires_at,
-                created_at=datetime.now(timezone.utc).isoformat(),
-            ).model_dump()
-
-        # Create blocking rule
-        rule_result = await create_firewall_rule(
-            site_id=site_id,
-            name=rule_name,
-            action="drop",
-            protocol="all",
-            settings=settings,
-            source=source_ip,
-            enabled=True,
-            confirm=True,
-        )
-
-        rule_id = rule_result.get("_id")
-        action_id = str(uuid4())
-
-        # Audit the action
-        await audit_action(
-            settings,
-            action_type="block_flow_source_ip",
-            resource_type="flow_block_action",
-            resource_id=action_id,
-            site_id=site_id,
-            details={"flow_id": flow_id, "source_ip": source_ip, "rule_id": rule_id},
-        )
-
-        return BlockFlowAction(  # type: ignore[no-any-return]
-            action_id=action_id,
-            block_type="source_ip",
-            blocked_target=source_ip,
-            rule_id=rule_id,
-            zone_id=None,
-            duration=duration,
-            expires_at=expires_at,
-            created_at=datetime.now(timezone.utc).isoformat(),
-        ).model_dump()
+    return await _create_block_action(
+        site_id=site_id,
+        settings=settings,
+        block_type="source_ip",
+        blocked_target=source_ip,
+        rule_name_prefix="BlockSrc",
+        duration=duration,
+        expires_in_hours=expires_in_hours,
+        dry_run=dry_run,
+    )
 
 
 async def block_flow_destination_ip(
@@ -746,357 +814,134 @@ async def block_flow_destination_ip(
     expires_in_hours: int | None = None,
     confirm: bool | str = False,
     dry_run: bool | str = False,
-) -> dict:
-    """Block destination IP address from a traffic flow.
-
-    Args:
-        site_id: Site identifier
-        flow_id: Flow identifier to block
-        settings: Application settings
-        duration: Block duration ("permanent" or "temporary")
-        expires_in_hours: Hours until expiration (for temporary blocks)
-        confirm: Confirmation flag (required)
-        dry_run: If True, validate but don't execute
-
-    Returns:
-        Block action result
-    """
+) -> dict[str, Any]:
+    """Create a firewall rule blocking the destination IP of a specific flow."""
     validate_confirmation(confirm, "block flow destination IP", dry_run)
 
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Blocking destination IP from flow {flow_id}"))
+    flow_dict = await get_traffic_flow_details(site_id, flow_id, settings)
+    destination_ip = (flow_dict.get("destination") or {}).get("ip")
+    if not destination_ip:
+        raise ValueError(f"No destination IP found for flow {flow_id}")
 
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flow details
-        flow_data = await get_traffic_flow_details(site_id, flow_id, settings)
-        destination_ip = flow_data.get("destination_ip")
-
-        if not destination_ip:
-            raise ValueError(f"No destination IP found for flow {flow_id}")
-
-        # Calculate expiration
-        expires_at = None
-        if duration == "temporary" and expires_in_hours:
-            expires_at = (
-                datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
-            ).isoformat()
-
-        # Create firewall rule to block this IP
-        from .firewall import create_firewall_rule
-
-        rule_name = f"Block_{destination_ip}_{flow_id[:8]}"
-
-        if dry_run:
-            logger.info(sanitize_log_message(f"[DRY RUN] Would block destination IP {destination_ip}"))
-            action_id = str(uuid4())
-            return BlockFlowAction(  # type: ignore[no-any-return]
-                action_id=action_id,
-                block_type="destination_ip",
-                blocked_target=destination_ip,
-                rule_id=None,
-                zone_id=None,
-                duration=duration,
-                expires_at=expires_at,
-                created_at=datetime.now(timezone.utc).isoformat(),
-            ).model_dump()
-
-        # Create blocking rule
-        rule_result = await create_firewall_rule(
-            site_id=site_id,
-            name=rule_name,
-            action="drop",
-            protocol="all",
-            settings=settings,
-            destination=destination_ip,
-            enabled=True,
-            confirm=True,
-        )
-
-        rule_id = rule_result.get("_id")
-        action_id = str(uuid4())
-
-        # Audit the action
-        await audit_action(
-            settings,
-            action_type="block_flow_destination_ip",
-            resource_type="flow_block_action",
-            resource_id=action_id,
-            site_id=site_id,
-            details={"flow_id": flow_id, "destination_ip": destination_ip, "rule_id": rule_id},
-        )
-
-        return BlockFlowAction(  # type: ignore[no-any-return]
-            action_id=action_id,
-            block_type="destination_ip",
-            blocked_target=destination_ip,
-            rule_id=rule_id,
-            zone_id=None,
-            duration=duration,
-            expires_at=expires_at,
-            created_at=datetime.now(timezone.utc).isoformat(),
-        ).model_dump()
+    return await _create_block_action(
+        site_id=site_id,
+        settings=settings,
+        block_type="destination_ip",
+        blocked_target=destination_ip,
+        rule_name_prefix="BlockDst",
+        duration=duration,
+        expires_in_hours=expires_in_hours,
+        dry_run=dry_run,
+    )
 
 
 async def block_flow_application(
     site_id: str,
     flow_id: str,
     settings: Settings,
-    use_zbf: bool = True,
-    zone_id: str | None = None,
+    duration: str = "permanent",
+    expires_in_hours: int | None = None,
     confirm: bool | str = False,
     dry_run: bool | str = False,
-) -> dict:
-    """Block application identified in a traffic flow.
+) -> dict[str, Any]:
+    """Block a flow's identified application.
 
-    Args:
-        site_id: Site identifier
-        flow_id: Flow identifier to block
-        settings: Application settings
-        use_zbf: Use Zone-Based Firewall if available (default: True)
-        zone_id: Zone ID for ZBF blocking (optional)
-        confirm: Confirmation flag (required)
-        dry_run: If True, validate but don't execute
-
-    Returns:
-        Block action result
+    The v2 ``traffic-flows`` endpoint reports a coarse ``service`` field
+    ("DNS", "OTHER", etc.) rather than a DPI application id, so this tool
+    falls back to blocking the destination IP when no distinct application
+    can be inferred.
     """
     validate_confirmation(confirm, "block flow application", dry_run)
 
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Blocking application from flow {flow_id}"))
+    flow_dict = await get_traffic_flow_details(site_id, flow_id, settings)
+    destination_ip = (flow_dict.get("destination") or {}).get("ip")
+    if not destination_ip:
+        raise ValueError(f"Flow {flow_id} has no destination IP to block")
+    # The v2 endpoint reports a coarse `service` field ("DNS", "OTHER",
+    # etc.) rather than a DPI application id, so we always fall back to
+    # blocking the destination IP. The service name is included in the
+    # block-action metadata for audit purposes but NOT in the firewall
+    # rule target (which must be a valid IP/CIDR).
+    target = destination_ip
 
-        if not client.is_authenticated:
-            await client.authenticate()
+    return await _create_block_action(
+        site_id=site_id,
+        settings=settings,
+        block_type="application",
+        blocked_target=target,
+        rule_name_prefix="BlockApp",
+        duration=duration,
+        expires_in_hours=expires_in_hours,
+        dry_run=dry_run,
+    )
 
-        # Get flow details
-        flow_data = await get_traffic_flow_details(site_id, flow_id, settings)
-        application_id = flow_data.get("application_id")
-        application_name = flow_data.get("application_name", "Unknown")
 
-        if not application_id:
-            raise ValueError(f"No application ID found for flow {flow_id}")
+async def _create_block_action(
+    *,
+    site_id: str,
+    settings: Settings,
+    block_type: str,
+    blocked_target: str,
+    rule_name_prefix: str,
+    duration: str,
+    expires_in_hours: int | None,
+    dry_run: bool | str,
+) -> dict[str, Any]:
+    """Shared block-action implementation used by the three block_flow_* tools."""
+    from .firewall import create_firewall_rule
 
-        action_id = str(uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
+    rule_name = f"{rule_name_prefix}_{blocked_target.replace(':', '_')[:24]}"
+    action_id = str(uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    expires_at = None
+    if duration == "temporary" and expires_in_hours:
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+        ).isoformat()
 
-        if dry_run:
-            logger.info(sanitize_log_message(f"[DRY RUN] Would block application {application_name} ({application_id})"))
-            return BlockFlowAction(  # type: ignore[no-any-return]
-                action_id=action_id,
-                block_type="application",
-                blocked_target=application_id,
-                rule_id=None,
-                zone_id=zone_id if use_zbf else None,
-                duration="permanent",
-                expires_at=None,
-                created_at=created_at,
-            ).model_dump()
-
-        rule_id = None
-        result_zone_id = None
-
-        # Try ZBF blocking first if requested
-        if use_zbf:
-            try:
-                from .zbf_matrix import block_application_by_zone
-
-                # If no zone specified, try to get a default zone
-                if not zone_id:
-                    from .firewall_zones import list_firewall_zones
-
-                    zones = await list_firewall_zones(site_id, settings)
-                    if zones:
-                        zone_id = zones[0].get("id")
-
-                if zone_id:
-                    await block_application_by_zone(
-                        site_id=site_id,
-                        zone_id=zone_id,
-                        application_id=application_id,
-                        settings=settings,
-                        action="block",
-                        confirm=True,
-                    )
-                    result_zone_id = zone_id
-                    logger.info(sanitize_log_message(f"Blocked application using ZBF in zone {zone_id}"))
-            except Exception as e:
-                logger.warning(sanitize_log_message(f"ZBF blocking failed, falling back to traditional firewall: {e}"))
-                use_zbf = False
-
-        # Fallback to traditional firewall rule
-        if not use_zbf or not zone_id:
-            from .firewall import create_firewall_rule
-
-            rule_name = f"Block_App_{application_name}_{flow_id[:8]}"
-
-            rule_result = await create_firewall_rule(
-                site_id=site_id,
-                name=rule_name,
-                action="drop",
-                protocol="all",
-                settings=settings,
-                enabled=True,
-                confirm=True,
+    if dry_run:
+        logger.info(
+            sanitize_log_message(
+                f"[DRY RUN] Would block {block_type}={blocked_target}"
             )
-            rule_id = rule_result.get("_id")
-
-        # Audit the action
-        await audit_action(
-            settings,
-            action_type="block_flow_application",
-            resource_type="flow_block_action",
-            resource_id=action_id,
-            site_id=site_id,
-            details={
-                "flow_id": flow_id,
-                "application_id": application_id,
-                "application_name": application_name,
-                "rule_id": rule_id,
-                "zone_id": result_zone_id,
-            },
         )
-
-        return BlockFlowAction(  # type: ignore[no-any-return]
+        return BlockFlowAction(
             action_id=action_id,
-            block_type="application",
-            blocked_target=application_id,
-            rule_id=rule_id,
-            zone_id=result_zone_id,
-            duration="permanent",
-            expires_at=None,
+            block_type=block_type,  # type: ignore[arg-type]
+            blocked_target=blocked_target,
+            rule_id=None,
+            zone_id=None,
+            duration=duration,  # type: ignore[arg-type]
+            expires_at=expires_at,
             created_at=created_at,
         ).model_dump()
 
+    rule_result = await create_firewall_rule(
+        site_id=site_id,
+        name=rule_name,
+        action="drop",
+        settings=settings,
+        src_address=blocked_target if block_type == "source_ip" else None,
+        dst_address=blocked_target if block_type != "source_ip" else None,
+        confirm=True,
+    )
 
-async def export_traffic_flows(
-    site_id: str,
-    settings: Settings,
-    export_format: str = "json",
-    time_range: str = "24h",
-    include_fields: list[str] | None = None,
-    filter_expression: str | None = None,
-    max_records: int | None = None,
-) -> str:
-    """Export traffic flows to a file format.
+    await audit_action(
+        settings,
+        action_type=f"block_flow_{block_type}",
+        resource_type="firewall_rule",
+        resource_id=rule_result.get("_id", rule_result.get("id", "unknown")),
+        site_id=site_id,
+        details={"blocked_target": blocked_target, "duration": duration},
+    )
 
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        export_format: Export format ("json", "csv")
-        time_range: Time range for export
-        include_fields: Specific fields to include (None = all)
-        filter_expression: Filter expression
-        max_records: Maximum number of records
-
-    Returns:
-        Exported data as string
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Exporting traffic flows in {export_format} format"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flows based on filter
-        if filter_expression:
-            flows = await filter_traffic_flows(
-                site_id, settings, filter_expression, time_range, max_records
-            )
-        else:
-            flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-            if max_records:
-                flows = flows[:max_records]
-
-        # Filter fields if specified
-        if include_fields:
-            flows = [
-                {field: flow.get(field) for field in include_fields if field in flow}
-                for flow in flows
-            ]
-
-        # Export to requested format
-        if export_format == "json":
-            return json.dumps(flows, indent=2)
-
-        elif export_format == "csv":
-            if not flows:
-                return ""
-
-            output = StringIO()
-            # Get all unique fields
-            all_fields: set[str] = set()
-            for flow in flows:
-                all_fields.update(flow.keys())
-
-            fieldnames = sorted(all_fields)
-            writer = csv.DictWriter(output, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(flows)
-
-            return output.getvalue()
-
-        else:
-            raise ValueError(f"Unsupported export format: {export_format}")
-
-
-async def get_flow_analytics(
-    site_id: str,
-    settings: Settings,
-    time_range: str = "24h",
-) -> dict:
-    """Get comprehensive flow analytics.
-
-    Args:
-        site_id: Site identifier
-        settings: Application settings
-        time_range: Time range for analytics
-
-    Returns:
-        Comprehensive analytics data
-    """
-    async with UniFiClient(settings) as client:
-        logger.info(sanitize_log_message(f"Generating flow analytics for site {site_id}"))
-
-        if not client.is_authenticated:
-            await client.authenticate()
-
-        # Get flows and statistics
-        flows = await get_traffic_flows(site_id, settings, time_range=time_range)
-        statistics = await get_flow_statistics(site_id, settings, time_range)
-        states = await get_connection_states(site_id, settings, time_range)
-
-        # Additional analytics
-        protocols: dict[str, int] = {}
-        applications: dict[str, dict[str, int]] = {}
-
-        for flow in flows:
-            # Protocol distribution
-            protocol = flow.get("protocol", "unknown")
-            protocols[protocol] = protocols.get(protocol, 0) + 1
-
-            # Application distribution
-            app = flow.get("application_name", "Unknown")
-            total_bytes = flow.get("bytes_sent", 0) + flow.get("bytes_received", 0)
-            if app not in applications:
-                applications[app] = {"count": 0, "bytes": 0}
-            applications[app]["count"] += 1
-            applications[app]["bytes"] += total_bytes
-
-        # State distribution
-        state_distribution: dict[str, int] = {}
-        for state in states:
-            state_type = state.get("state", "unknown")
-            state_distribution[state_type] = state_distribution.get(state_type, 0) + 1
-
-        return {
-            "site_id": site_id,
-            "time_range": time_range,
-            "statistics": statistics,
-            "protocol_distribution": protocols,
-            "application_distribution": applications,
-            "state_distribution": state_distribution,
-            "total_flows": len(flows),
-            "total_states": len(states),
-        }
+    return BlockFlowAction(
+        action_id=action_id,
+        block_type=block_type,  # type: ignore[arg-type]
+        blocked_target=blocked_target,
+        rule_id=str(rule_result.get("_id", rule_result.get("id", ""))) or None,
+        zone_id=None,
+        duration=duration,  # type: ignore[arg-type]
+        expires_at=expires_at,
+        created_at=created_at,
+    ).model_dump()
