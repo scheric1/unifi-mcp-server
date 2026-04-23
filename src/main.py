@@ -19,6 +19,7 @@ from .tools import devices as devices_tools
 from .tools import dpi as dpi_tools
 from .tools import dpi_tools as dpi_new_tools
 from .tools import firewall as firewall_tools
+from .tools import firewall_policies as firewall_policies_tools
 from .tools import firewall_zones as firewall_zones_tools
 from .tools import network_config as network_config_tools
 from .tools import networks as networks_tools
@@ -112,6 +113,7 @@ _TOOL_MODULES = [
     dpi_tools,
     dpi_new_tools,
     firewall_tools,
+    firewall_policies_tools,
     firewall_zones_tools,
     network_config_tools,
     networks_tools,

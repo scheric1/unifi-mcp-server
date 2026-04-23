@@ -106,6 +106,42 @@ class FirewallPolicyCreate(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class FirewallZoneV2Mapping(BaseModel):
+    """Zone listing entry from the v2 ``/firewall/zone`` endpoint.
+
+    Exposes both the internal MongoDB ObjectId (used by the v2
+    ``firewall-policies`` endpoint) and the external UUID (used by the public
+    integration API and most other MCP tools), plus the display name and
+    ``zone_key``. Callers can hand any of these identifiers to
+    ``create_firewall_policy`` / ``update_firewall_policy`` and the zone
+    resolver will map them to the internal id.
+    """
+
+    internal_id: str | None = Field(
+        None,
+        description="MongoDB ObjectId used by the v2 firewall-policies endpoint",
+    )
+    external_id: str | None = Field(
+        None,
+        description="UUID returned by the public integration API",
+    )
+    name: str | None = Field(None, description="Display name")
+    zone_key: str | None = Field(
+        None,
+        description="Internal zone key (e.g. 'internal', 'external', 'dmz')",
+    )
+    default_zone: bool = Field(
+        False,
+        description="Whether this is a UniFi-defined default zone",
+    )
+    network_ids: list[str] = Field(
+        default_factory=list,
+        description="Internal network _ids assigned to this zone",
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
 class FirewallPolicyUpdate(BaseModel):
     name: str | None = Field(None, description="Policy name")
     action: str | None = Field(None, description="Policy action")
