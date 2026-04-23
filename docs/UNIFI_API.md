@@ -1,8 +1,8 @@
-# UniFi Network API Documentation (v10.2.105)
+# UniFi Network API Documentation (v10.3.55)
 
 ## Overview
 
-This document provides comprehensive reference documentation for the UniFi Network API version 10.0.160. Each UniFi Application has its own API endpoints running locally on each site, offering detailed analytics and control related to that specific application. For a single endpoint with high-level insights across all your UniFi sites, refer to the [UniFi Site Manager API](https://developer.ui.com/).
+This document provides comprehensive reference documentation for the UniFi Network API version 10.3.55. Each UniFi Application has its own API endpoints running locally on each site, offering detailed analytics and control related to that specific application. For a single endpoint with high-level insights across all your UniFi sites, refer to the [UniFi Site Manager API](https://developer.ui.com/).
 
 ## Table of Contents
 
@@ -28,6 +28,35 @@ This document provides comprehensive reference documentation for the UniFi Netwo
 - [Backup and Restore](#backup-and-restore)
 - [Site Manager API](#site-manager-api)
 - [Supporting Resources](#supporting-resources)
+- [Version History](#version-history)
+
+---
+
+## Version History
+
+### v10.3.55 (April 2026)
+
+Updated from OpenAPI spec extracted from UniFi Network 10.3.55. Endpoint count unchanged (73 total). Key schema changes:
+
+**Added**
+- **DNS Assistance Configuration** — New WiFi broadcast field `dnsAssistanceConfiguration` supporting `AUTO` and `MANUAL` modes. Manual mode allows specifying up to 2 failover DNS servers.
+- **Local LAG** — New LAG type `LOCAL` added alongside existing `SWITCH_STACK` and `MULTI_CHASSIS` types. Represented by `IntegrationLocalLagGlobalDto` and `IntegrationLocalLagLocalDto` schemas.
+- **IntegrationLagMemberDto** — New unified LAG member schema replacing the removed abstract hierarchy.
+
+**Changed**
+- **WiFi Broadcasts** — `IntegrationStandardWifiBroadcastCreateUpdateDto` and `IntegrationStandardWifiBroadcastDetailDto` now include `dnsAssistanceConfiguration`.
+- **Open Security Configuration** — `IntegrationWifiOpenSecurityConfigurationDetailDto` gained an `encryption` enum field supporting `ENHANCED_OPEN` and `ENHANCED_OPEN_WITH_TRANSITION`.
+- **LAG Details** — Discriminator now includes `LOCAL` mapping.
+- **Switching Feature Overview** — Renamed from `Switch feature overview`.
+
+**Removed**
+- `AbstractIntegrationLagMemberDto` (replaced by `IntegrationLagMemberDto`)
+- `IntegrationMcLagMemberDto` (replaced by unified member schema)
+- `IntegrationSwitchStackLagMemberDto` (replaced by unified member schema)
+
+### v10.2.105 (Prior)
+
+Previous baseline. Added Switching section (Switch Stacks, MC-LAG Domains, LAGs), WiFi broadcast parity, and firewall zone/policy endpoints.
 
 ---
 
@@ -826,6 +855,7 @@ Endpoints to create, update, or remove WiFi networks (SSIDs). Supports configura
 | `bssTransitionEnabled` | boolean | Yes | Enable BSS transition |
 | `advertiseDeviceName` | boolean | Yes | Advertise device name in beacon frames |
 | `dtimPeriodByFrequencyGHzOverride` | object | No | DTIM period configuration by frequency |
+| `dnsAssistanceConfiguration` | object | No | DNS assistance configuration. Mode: `AUTO` or `MANUAL`. Manual mode accepts `servers` array (max 2 failover DNS servers). |
 
 ### Get Wifi Broadcast Details
 
@@ -853,6 +883,7 @@ Endpoints to create, update, or remove WiFi networks (SSIDs). Supports configura
 - `hotspotConfiguration.type`
 - `mloEnabled`, `bandSteeringEnabled`, `arpProxyEnabled`, `bssTransitionEnabled`, `advertiseDeviceName`
 - `dtimPeriodByFrequencyGHzOverride`
+- `dnsAssistanceConfiguration.mode`, `dnsAssistanceConfiguration.servers`
 
 ### Update Wifi Broadcast
 
@@ -1668,7 +1699,7 @@ Reorder user-defined ACL rules on a site.
 
 ## Switching
 
-Endpoints for managing switching features like Switch Stacking and LAG (Link Aggregation Groups).
+Endpoints for managing switching features like Switch Stacking, MC-LAG Domains, and LAG (Link Aggregation Groups). The switching feature overview schema was renamed from `Switch feature overview` to `Switching feature overview` in v10.3.55.
 
 ### List Switch Stacks
 
@@ -1815,10 +1846,25 @@ Retrieve LAG details.
 {
   "type": "SWITCH_STACK",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [{}],
+  "members": [
+    {
+      "deviceId": "bd2c5532-16a4-4f97-91d1-09f6ed6a3b97",
+      "portIdxs": [1, 2]
+    }
+  ],
   "switchStackId": "bd2c5532-16a4-4f97-91d1-09f6ed6a3b97"
 }
 ```
+
+**LAG Types:**
+
+| Type | Description |
+|------|-------------|
+| `LOCAL` | Link aggregation on a single switch (new in v10.3.55) |
+| `SWITCH_STACK` | Link aggregation across a switch stack |
+| `MULTI_CHASSIS` | Multi-chassis link aggregation (MC-LAG) |
+
+**Member Schema:** LAG members use the unified `IntegrationLagMemberDto` schema (replaced `AbstractIntegrationLagMemberDto` and its subclasses in v10.3.55). Each member requires `deviceId` (UUID) and `portIdxs` (array of port indices).
 
 ---
 
