@@ -90,6 +90,84 @@ The UniFi MCP Server supports **three distinct API modes** with different capabi
 
 **💡 Recommendation**: Use **Local Gateway API** (`UNIFI_API_TYPE=local`) for full functionality. Cloud APIs are suitable only for high-level monitoring dashboards.
 
+## 🔌 Transport Modes
+
+The UniFi MCP Server supports **multiple transport modes** for different deployment scenarios:
+
+### STDIO (Default) ✅
+
+**Local subprocess communication** — Best for Claude Desktop, Cursor, and local AI clients.
+
+- ✅ **Default mode**: No configuration needed
+- ✅ **Zero network overhead**: Direct stdin/stdout communication
+- ✅ **No port required**: Runs as a subprocess of the MCP client
+- ⚙️ **Configuration**: `MCP_SERVER_TRANSPORT=stdio` (default)
+
+### SSE (Server-Sent Events) 🌐
+
+**Network-accessible HTTP server** — Best for MCP gateways and consolidating multiple MCPs.
+
+- ✅ **Network access**: Connect from any MCP client over HTTP
+- ✅ **MCP gateway compatible**: Works with MCP gateways that consolidate servers
+- ✅ **Real-time streaming**: Long-lived connections for continuous communication
+- ⚙️ **Configuration**: `MCP_SERVER_TRANSPORT=sse` + `MCP_SERVER_PORT=3000`
+
+### HTTP 🌐
+
+**Standard HTTP transport** — Alternative network mode.
+
+- ⚙️ **Configuration**: `MCP_SERVER_TRANSPORT=http` + `MCP_SERVER_PORT=3000`
+
+### Streamable HTTP 🌐
+
+**Modern HTTP transport** — Latest MCP transport standard.
+
+- ⚙️ **Configuration**: `MCP_SERVER_TRANSPORT=streamable_http` + `MCP_SERVER_PORT=3000`
+
+**💡 Recommendation**: Use **STDIO** for local AI clients (Claude Desktop, Cursor). Use **SSE** when running behind an MCP gateway to consolidate multiple MCP servers into a single URL.
+
+### Running in SSE Mode
+
+```bash
+# Set transport to SSE
+export MCP_SERVER_TRANSPORT=sse
+export MCP_SERVER_PORT=3000
+
+# Start the server
+unifi-mcp-server
+# Server listening on 0.0.0.0:3000 via sse
+```
+
+### Docker Compose for SSE Mode
+
+```yaml
+services:
+  unifi-mcp:
+    image: ghcr.io/enuno/unifi-mcp-server:latest
+    environment:
+      UNIFI_API_KEY: your-api-key
+      UNIFI_API_TYPE: local
+      UNIFI_LOCAL_HOST: 192.168.2.1
+      MCP_SERVER_TRANSPORT: sse
+      MCP_SERVER_PORT: 3000
+    ports:
+      - "3000:3000"
+```
+
+### Connecting via MCP Gateway
+
+Once running in SSE mode, configure your MCP gateway to connect:
+
+```json
+{
+  "mcpServers": {
+    "unifi": {
+      "url": "http://your-server-ip:3000/sse"
+    }
+  }
+}
+```
+
 ## Features
 
 ### Core Network Management
@@ -804,6 +882,10 @@ After installing from PyPI (`pip install unifi-mcp-server`):
   - `UNIFI_CLOUD_API_URL`: Cloud API URL (default: <https://api.ui.com>)
   - `UNIFI_DEFAULT_SITE`: Default site ID (default: default)
   - `UNIFI_SITE_MANAGER_ENABLED`: Enable Site Manager multi-site tools for cloud-ea (default: false)
+- **MCP Server Transport**:
+  - `MCP_SERVER_TRANSPORT`: Transport mode (`stdio`, `sse`, `http`, `streamable_http`; default: `stdio`)
+  - `MCP_SERVER_HOST`: Bind address (default: `0.0.0.0`)
+  - `MCP_SERVER_PORT`: Server port (default: `3000`)
 
 ### Programmatic Usage
 

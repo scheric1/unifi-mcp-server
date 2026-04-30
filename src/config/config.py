@@ -18,6 +18,15 @@ class APIType(str, Enum):
     CLOUD = "cloud-ea"
 
 
+class TransportMode(str, Enum):
+    """MCP server transport mode enumeration."""
+
+    STDIO = "stdio"  # Default: stdin/stdout for local subprocess
+    HTTP = "http"  # HTTP server for network access
+    SSE = "sse"  # Server-Sent Events for MCP gateways
+    STREAMABLE_HTTP = "streamable_http"  # Modern HTTP transport
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
 
@@ -147,6 +156,25 @@ class Settings(BaseSettings):
         validation_alias="UNIFI_AUDIT_LOG_ENABLED",
     )
 
+    # MCP Server Transport Configuration
+    server_transport: TransportMode = Field(
+        default=TransportMode.STDIO,
+        description="MCP server transport mode: stdio (default), http, sse, or streamable_http",
+        validation_alias="MCP_SERVER_TRANSPORT",
+    )
+
+    server_host: str = Field(
+        default="0.0.0.0",
+        description="Server bind address (used for http/sse/streamable_http transport)",
+        validation_alias="MCP_SERVER_HOST",
+    )
+
+    server_port: int = Field(
+        default=3000,
+        description="Server port (used for http/sse/streamable_http transport)",
+        validation_alias="MCP_SERVER_PORT",
+    )
+
     @field_validator("api_type", mode="before")
     @classmethod
     def validate_api_type(cls, v: str) -> APIType:
@@ -179,6 +207,39 @@ class Settings(BaseSettings):
         if not 1 <= v <= 65535:
             raise ValueError(f"Port must be between 1 and 65535, got {v}")
         return v
+
+    @field_validator("server_port")
+    @classmethod
+    def validate_server_port(cls, v: int) -> int:
+        """Validate server port number is in valid range.
+
+        Args:
+            v: Server port number
+
+        Returns:
+            Validated server port number
+
+        Raises:
+            ValueError: If server port is invalid
+        """
+        if not 1 <= v <= 65535:
+            raise ValueError(f"Server port must be between 1 and 65535, got {v}")
+        return v
+
+    @field_validator("server_transport", mode="before")
+    @classmethod
+    def validate_server_transport(cls, v: str) -> TransportMode:
+        """Validate and convert transport mode to enum.
+
+        Args:
+            v: Transport mode string
+
+        Returns:
+            TransportMode enum value
+        """
+        if isinstance(v, TransportMode):
+            return v
+        return TransportMode(v.lower())
 
     @model_validator(mode="after")
     def validate_local_configuration(self) -> "Settings":

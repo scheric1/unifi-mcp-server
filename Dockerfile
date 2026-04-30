@@ -74,8 +74,8 @@ USER mcp
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import sys; from src.config import Settings; Settings(); sys.exit(0)" || exit 1
 
-# Expose MCP server port (if applicable)
-# EXPOSE 8000
+# Expose MCP server port (default 3000, configurable via MCP_SERVER_PORT)
+EXPOSE 3000
 
 # Default command - run via FastMCP
 CMD ["python", "-m", "src.main"]

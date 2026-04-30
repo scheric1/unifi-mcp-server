@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.config.config import APIType, Settings
+from src.config.config import APIType, Settings, TransportMode
 
 
 class TestAPITypeEnum:
@@ -302,3 +302,84 @@ class TestSettingsDefaults:
         monkeypatch.setenv("UNIFI_API_KEY", "test-key")
         settings = Settings()
         assert settings.audit_log_enabled is True
+
+
+class TestSettingsTransportConfiguration:
+    """Tests for MCP server transport configuration."""
+
+    def test_default_transport_is_stdio(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        settings = Settings()
+        assert settings.server_transport == TransportMode.STDIO
+
+    def test_default_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        settings = Settings()
+        assert settings.server_host == "0.0.0.0"
+
+    def test_default_port(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        settings = Settings()
+        assert settings.server_port == 3000
+
+    def test_transport_sse(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_TRANSPORT", "sse")
+        settings = Settings()
+        assert settings.server_transport == TransportMode.SSE
+
+    def test_transport_http(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_TRANSPORT", "http")
+        settings = Settings()
+        assert settings.server_transport == TransportMode.HTTP
+
+    def test_transport_streamable_http(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_TRANSPORT", "streamable_http")
+        settings = Settings()
+        assert settings.server_transport == TransportMode.STREAMABLE_HTTP
+
+    def test_transport_uppercase(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_TRANSPORT", "SSE")
+        settings = Settings()
+        assert settings.server_transport == TransportMode.SSE
+
+    def test_custom_port(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_PORT", "8080")
+        settings = Settings()
+        assert settings.server_port == 8080
+
+    def test_custom_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_HOST", "127.0.0.1")
+        settings = Settings()
+        assert settings.server_host == "127.0.0.1"
+
+    def test_server_port_min_boundary(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_PORT", "1")
+        settings = Settings()
+        assert settings.server_port == 1
+
+    def test_server_port_max_boundary(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_PORT", "65535")
+        settings = Settings()
+        assert settings.server_port == 65535
+
+    def test_server_port_zero_raises(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_PORT", "0")
+        with pytest.raises(ValueError) as exc_info:
+            Settings()
+        assert "Server port must be between 1 and 65535" in str(exc_info.value)
+
+    def test_server_port_too_high_raises(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("UNIFI_API_KEY", "test-key")
+        monkeypatch.setenv("MCP_SERVER_PORT", "65536")
+        with pytest.raises(ValueError) as exc_info:
+            Settings()
+        assert "Server port must be between 1 and 65535" in str(exc_info.value)

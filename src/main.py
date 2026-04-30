@@ -6,7 +6,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from .config import APIType, Settings
+from .config import APIType, Settings, TransportMode
 from .resources import ClientsResource, DevicesResource, NetworksResource, SitesResource
 from .resources import site_manager as site_manager_resource
 from .tool_registry import register_module_tools
@@ -329,10 +329,19 @@ def main() -> None:
     logger.info("Starting UniFi MCP Server...")
     logger.info(f"API Type: {settings.api_type.value}")
     logger.info(f"Base URL: {settings.base_url}")
-    logger.info("Server ready to handle requests")
 
-    # Start the FastMCP server
-    mcp.run()
+    if settings.server_transport == TransportMode.STDIO:
+        logger.info("Transport: stdio (default)")
+        logger.info("Server ready to handle requests")
+        mcp.run()
+    else:
+        logger.info(f"Transport: {settings.server_transport.value}")
+        logger.info(f"Server listening on {settings.server_host}:{settings.server_port}")
+        mcp.run(
+            transport=settings.server_transport.value,
+            host=settings.server_host,
+            port=settings.server_port,
+        )
 
 
 if __name__ == "__main__":
