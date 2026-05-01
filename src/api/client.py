@@ -527,7 +527,9 @@ class UniFiClient:
 
         for site in sites:
             if not isinstance(site, dict):
-                self.logger.warning(f"Skipping non-dict site entry in resolve: {type(site).__name__}")
+                self.logger.warning(
+                    f"Skipping non-dict site entry in resolve: {type(site).__name__}"
+                )
                 continue
             site_id = site.get("id") or site.get("_id")
             if not site_id:

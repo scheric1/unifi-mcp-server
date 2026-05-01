@@ -51,7 +51,9 @@ async def list_firewall_rules(
             try:
                 v2_endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies"
                 v2_response = await client.get(v2_endpoint)
-                v2_data = v2_response if isinstance(v2_response, list) else v2_response.get("data", [])
+                v2_data = (
+                    v2_response if isinstance(v2_response, list) else v2_response.get("data", [])
+                )
                 if v2_data:
                     rules_data = v2_data
                     logger.info(
@@ -61,7 +63,9 @@ async def list_firewall_rules(
                     )
             except Exception as e:
                 logger.debug(
-                    sanitize_log_message(f"v2 firewall-policies fallback failed for site '{site_id}': {e}")
+                    sanitize_log_message(
+                        f"v2 firewall-policies fallback failed for site '{site_id}': {e}"
+                    )
                 )
 
         # Apply pagination

@@ -1,0 +1,143 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777604114451,
+  "projectRoot": "/home/elvis/projects/unifi-mcp-server",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "pytest",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": "camelCase/PascalCase",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 3,
+      "lastAccessed": 1777604114314,
+      "keyFiles": [
+        "DISASTER_RECOVERY.md",
+        "RELEASE_PROCESS.md",
+        "UNIFI_API.md"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 4,
+      "lastAccessed": 1777604114316,
+      "keyFiles": [
+        "README.md",
+        "package.json",
+        "update-api-docs.js"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 6,
+      "lastAccessed": 1777604114350,
+      "keyFiles": [
+        "__init__.py",
+        "__main__.py",
+        "cache.py",
+        "docs.md",
+        "main.py"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 2,
+      "lastAccessed": 1777604114407,
+      "keyFiles": [
+        "__init__.py",
+        "conftest.py"
+      ]
+    },
+    "src/api": {
+      "path": "src/api",
+      "purpose": "API routes",
+      "fileCount": 3,
+      "lastAccessed": 1777604114439,
+      "keyFiles": [
+        "__init__.py",
+        "client.py",
+        "site_manager_client.py"
+      ]
+    },
+    "src/config": {
+      "path": "src/config",
+      "purpose": "Configuration files",
+      "fileCount": 2,
+      "lastAccessed": 1777604114439,
+      "keyFiles": [
+        "__init__.py",
+        "config.py"
+      ]
+    },
+    "src/models": {
+      "path": "src/models",
+      "purpose": "Data models",
+      "fileCount": 25,
+      "lastAccessed": 1777604114440,
+      "keyFiles": [
+        "__init__.py",
+        "acl.py",
+        "backup.py"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}
