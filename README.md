@@ -12,7 +12,7 @@ A Model Context Protocol (MCP) server that exposes the UniFi Network Controller 
 
 ## 📋 Version Notice
 
-**Current Stable Release**: 0.2.4 (2026-02-19) 🎉
+**Current Stable Release**: 0.2.5 (May 1, 2026) 🎉
 
 **Installation:**
 
@@ -20,10 +20,20 @@ A Model Context Protocol (MCP) server that exposes the UniFi Network Controller 
 pip install unifi-mcp-server
 ```
 
-**What's New in v0.2.4 (Hotfix):**
+**What's New in v0.2.5:**
 
-- 🚨 **Critical Startup Fix (issue #42)** - `ImportError: cannot import 'config' from 'agnost'` prevented the server from starting for all users, even when `AGNOST_ENABLED=false`. The fix moves agnost imports inside the conditional block with graceful error handling.
-- 📌 **Dependency Pin** - Excluded broken `agnost==0.1.13` from the version range (`>=0.1.12,!=0.1.13`)
+- 🚀 **SSE/HTTP Transport Mode** - Direct HTTP connectivity for MCP gateway integration with long-lived persistent bidirectional communication channels. Enable with `UNIFI_TRANSPORT_MODE=sse` and `UNIFI_HTTP_PORT=8000`.
+- 🔧 **API Compatibility Fixes** - 7 critical UniFi Network 9.x fixes including firewall policy zone resolution, WLAN band parameter handling, and response parsing
+- ☁️ **Cloud EA API Hardening** - Enhanced Site Manager endpoint resilience with graceful fallbacks and improved error handling
+- 🔐 **Security Updates** - Dependency bumps: fastmcp → latest, MCP framework → 1.26.0+, cryptography → 46.0.5+, httpx → 0.28.1+
+- 🧪 **1,232 Tests Passing** - Maintained high coverage across Python 3.10–3.13
+
+**See:** [RELEASE_NOTES_0.2.5.md](RELEASE_NOTES_0.2.5.md) for complete changelog.
+
+**Previous Release - v0.2.4 (2026-02-19):**
+
+- 🚨 **Critical Startup Fix (issue #42)** - `ImportError: cannot import 'config' from 'agnost'` prevented startup. Fixed by moving agnost imports inside the conditional block.
+- 📌 **Dependency Pin** - Excluded broken `agnost==0.1.13` from version range (`>=0.1.12,!=0.1.13`)
 - 🧪 **1,325 Tests Passing** - 1219 unit + 106 integration tests, cloud-ea API compatibility fixes, Site Manager endpoint hardening
 
 **Previous Release - v0.2.3 (2026-02-18):**
@@ -247,7 +257,7 @@ Once running in SSE mode, configure your MCP gateway to connect:
 
 - **Async Support**: Built with async/await for high performance and concurrency
 - **MCP Protocol**: Standard Model Context Protocol for AI agent integration
-- **Comprehensive Testing**: 1,325 tests (1,219 unit + 106 integration) with high coverage, all passing
+- **Comprehensive Testing**: 1,232 tests with high coverage, all passing across Python 3.10–3.13
 - **CI/CD Pipelines**: Automated testing, security scanning, and Docker builds (18 checks)
 - **Multi-Architecture**: Docker images for amd64, arm64, arm/v7 (32-bit ARM), and arm64/v8
 - **Security Hardened**: Updated critical dependencies (FastMCP, MCP SDK, cryptography)
@@ -287,9 +297,9 @@ After installation, the `unifi-mcp-server` command will be available globally.
 
 ```bash
 # Pull the latest release
-docker pull ghcr.io/enuno/unifi-mcp-server:0.2.4
+docker pull ghcr.io/enuno/unifi-mcp-server:0.2.5
 
-# Multi-architecture support: amd64, arm64, arm/v7
+# Multi-architecture support: amd64, arm64, arm/v7, arm64/v8
 ```
 
 #### Build from Source (Development)
