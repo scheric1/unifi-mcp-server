@@ -25,7 +25,7 @@ from ..utils.exceptions import ResourceNotFoundError
 logger = get_logger(__name__)
 
 
-def require_site_manager(func):
+def require_site_manager(func: Any) -> Any:
     """Decorator to ensure Site Manager API is enabled before calling function.
 
     Args:
@@ -39,7 +39,7 @@ def require_site_manager(func):
     """
 
     @wraps(func)
-    async def wrapper(settings: Settings, *args, **kwargs):
+    async def wrapper(settings: Settings, *args: Any, **kwargs: Any) -> Any:
         if not settings.site_manager_enabled:
             raise ValueError("Site Manager API is not enabled. Set UNIFI_SITE_MANAGER_ENABLED=true")
         return await func(settings, *args, **kwargs)
