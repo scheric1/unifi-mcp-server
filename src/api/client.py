@@ -382,9 +382,9 @@ class UniFiClient:
                         self.logger.debug(
                             f"Normalized {api_type} API response: extracted {len(data) if isinstance(data, list) else 'N/A'} items"
                         )
-                        # Return the data directly for consistency across all APIs
-                        # If data is a list, return it; if single object, return as-is
-                        return data if isinstance(data, list) else {"data": data}
+                        # Return a normalized dict with data key for consistency across APIs
+                        # Always return a dict[str, Any]
+                        return {"data": data}
                 else:
                     # Empty response body - treat as success with empty data
                     self.logger.debug(f"Empty response body for {endpoint}, returning empty dict")

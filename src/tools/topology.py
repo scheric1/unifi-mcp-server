@@ -74,7 +74,7 @@ async def get_network_topology(
         # Convert devices to topology nodes
         nodes = []
         connections = []
-        depth_map = {}  # Track network depth for each device
+        depth_map: dict[str, int] = {}  # Track network depth for each device
 
         # First pass: Create all device nodes and calculate depth
         for device in device_nodes:
