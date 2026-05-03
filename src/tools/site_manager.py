@@ -274,7 +274,7 @@ async def get_site_inventory(
                 site_response = await client.get(f"sites/{site_id}")
             except ResourceNotFoundError:
                 logger.warning(f"sites/{site_id} endpoint not available; using list_sites fallback")
-                site_response = []
+                site_response = {}
 
             if isinstance(site_response, list):
                 site_data = site_response[0] if site_response else {}

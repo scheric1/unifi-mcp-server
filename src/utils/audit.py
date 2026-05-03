@@ -198,15 +198,16 @@ async def audit_action(
         "site_id": site_id,
     }
 
+    params_to_log = dict(parameters)
     if details:
-        parameters["details"] = details
+        params_to_log["details"] = details
 
     # Get audit log file from settings if available
     log_file = getattr(settings, "audit_log_file", None)
 
     log_audit(
         operation=action_type,
-        parameters=parameters,
+        parameters=params_to_log,
         result="success",
         site_id=site_id,
         log_file=log_file,
