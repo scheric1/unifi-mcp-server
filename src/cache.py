@@ -18,8 +18,11 @@ try:
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
-    Redis = None
-    RedisError = Exception
+    from typing import Any
+
+    redis = None  # type: Any
+    Redis: Any = None
+    RedisError: Any = Exception
 
 from .config import Settings
 from .utils import get_logger

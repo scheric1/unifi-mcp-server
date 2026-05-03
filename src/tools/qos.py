@@ -127,7 +127,7 @@ async def create_traffic_route(
         raise ValidationError(f"Priority must be 1-1000, got {priority}")
 
     # Build match criteria
-    match_criteria = {}
+    match_criteria: dict[str, Any] = {}
     if source_ip:
         match_criteria["source_ip"] = source_ip
     if destination_ip:

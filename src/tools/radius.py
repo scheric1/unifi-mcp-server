@@ -131,7 +131,7 @@ async def create_radius_profile(
 
         if dry_run:
             # Build safe payload without secrets for logging
-            payload_safe = {
+            payload_safe: dict[str, Any] = {
                 "name": name,
                 "auth_server": auth_server,
                 "auth_port": auth_port,
@@ -241,7 +241,7 @@ async def update_radius_profile(
 
         if dry_run:
             # Build safe payload without secrets for logging
-            payload_safe = {}
+            payload_safe: dict[str, Any] = {}
             if name is not None:
                 payload_safe["name"] = name
             if auth_server is not None:

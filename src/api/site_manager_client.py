@@ -1,6 +1,6 @@
 """Site Manager API client for multi-site management."""
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -98,7 +98,7 @@ class SiteManagerClient:
             response = await self.client.get(endpoint, params=params)
             response.raise_for_status()
 
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:

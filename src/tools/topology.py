@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, Any, cast
 
 from src.api.client import UniFiClient
 from src.config import Settings
@@ -196,7 +196,7 @@ async def get_device_connections(
     """
     topology = await get_network_topology(site_id, settings)
 
-    connections = topology.get("connections", [])
+    connections = cast(list[dict[str, Any]], topology.get("connections", []))
 
     if device_id:
         # Filter connections for specific device
