@@ -50,7 +50,10 @@ async def list_content_filters(
             await client.authenticate()
 
         try:
-            response = await client.get(f"{settings.get_v2_api_path(site_id)}/content-filtering")
+            normalized_site_id = client._site_uuid_to_name.get(site_id, site_id)
+            response = await client.get(
+                f"{settings.get_v2_api_path(normalized_site_id)}/content-filtering"
+            )
         except APIError:
             logger.exception(
                 sanitize_log_message(f"Failed to list content filters for site {site_id}")
@@ -79,8 +82,9 @@ async def list_content_filter_categories(
             await client.authenticate()
 
         try:
+            normalized_site_id = client._site_uuid_to_name.get(site_id, site_id)
             response = await client.get(
-                f"{settings.get_v2_api_path(site_id)}/content-filtering/categories"
+                f"{settings.get_v2_api_path(normalized_site_id)}/content-filtering/categories"
             )
         except APIError:
             logger.exception(sanitize_log_message("Failed to list content filter categories"))
@@ -167,7 +171,8 @@ async def update_content_filter(
             await client.authenticate()
 
         # Fetch current state (no single-item GET — list endpoint only).
-        base = f"{settings.get_v2_api_path(site_id)}/content-filtering"
+        normalized_site_id = client._site_uuid_to_name.get(site_id, site_id)
+        base = f"{settings.get_v2_api_path(normalized_site_id)}/content-filtering"
         try:
             list_response = await client.get(base)
         except APIError:

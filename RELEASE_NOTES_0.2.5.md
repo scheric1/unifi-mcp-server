@@ -1,7 +1,7 @@
 # Release Notes: UniFi MCP Server v0.2.5
 
-**Release Date:** May 1, 2026  
-**Status:** Stable Release  
+**Release Date:** May 1, 2026
+**Status:** Stable Release
 **Tests:** 1,232 unit tests passing ✅
 
 ---
@@ -24,6 +24,7 @@ The MCP server now supports **Server-Sent Events (SSE) over HTTP**, in addition 
 - **Enhanced Deployment Flexibility**: Run alongside STDIO for multi-client scenarios
 
 **Configuration:**
+
 ```bash
 UNIFI_TRANSPORT_MODE=sse      # Enable SSE/HTTP mode
 UNIFI_HTTP_HOST=0.0.0.0       # Bind address (default: localhost)
@@ -42,7 +43,7 @@ See [TRANSPORT.md](docs/TRANSPORT.md) for detailed configuration guide.
   - Fixed firewall policy zone resolution
   - Corrected WLAN band parameter handling
   - Normalized single-object response parsing
-  
+
 - **Cloud EA API Hardening**: Enhanced Site Manager endpoint resilience
   - Graceful fallback for unavailable endpoints
   - Improved error handling for edge cases
@@ -75,16 +76,19 @@ See [TRANSPORT.md](docs/TRANSPORT.md) for detailed configuration guide.
 ## 📝 What's Changed Since v0.2.4
 
 ### New Features
+
 - ✨ SSE/HTTP transport mode support for MCP gateway integration
 - 🔌 HTTP server bootstrap for alternative deployment architectures
 
 ### Bug Fixes
+
 - 🐛 Local API compatibility fixes for UniFi Network 9.x
 - 🐛 Cloud EA API endpoint hardening
 - 🐛 Firewall policy zone resolution corrections
 - 🐛 WLAN band parameter parity improvements
 
 ### Quality & Maintenance
+
 - 📋 Automated code formatting pass (Black)
 - 🔧 Dependency security updates
 - 📚 Documentation improvements
@@ -95,16 +99,19 @@ See [TRANSPORT.md](docs/TRANSPORT.md) for detailed configuration guide.
 ## 🚀 Installation
 
 ### Via pip
+
 ```bash
 pip install unifi-mcp-server==0.2.5
 ```
 
 ### Via uv (Recommended)
+
 ```bash
 uv pip install unifi-mcp-server==0.2.5
 ```
 
 ### Via Docker
+
 ```bash
 docker pull ghcr.io/enuno/unifi-mcp-server:v0.2.5
 
@@ -175,9 +182,9 @@ None reported. Please [open an issue](https://github.com/enuno/unifi-mcp-server/
 
 ## 🔗 Links
 
-- **Repository**: https://github.com/enuno/unifi-mcp-server
-- **PyPI Package**: https://pypi.org/project/unifi-mcp-server
-- **Issue Tracker**: https://github.com/enuno/unifi-mcp-server/issues
+- **Repository**: <https://github.com/enuno/unifi-mcp-server>
+- **PyPI Package**: <https://pypi.org/project/unifi-mcp-server>
+- **Issue Tracker**: <https://github.com/enuno/unifi-mcp-server/issues>
 - **Docker Image**: ghcr.io/enuno/unifi-mcp-server:v0.2.5
 
 ---

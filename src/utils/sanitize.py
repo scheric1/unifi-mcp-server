@@ -109,7 +109,7 @@ def sanitize_dict(data: dict[str, Any], partial: bool = True) -> dict[str, Any]:
     if not isinstance(data, dict):
         return data
 
-    sanitized = {}
+    sanitized: dict[str, Any] = {}
     for key, value in data.items():
         key_lower = key.lower()
 

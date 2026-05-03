@@ -64,6 +64,12 @@ class TestMatchingTarget:
 
         assert MatchingTarget.CLIENT.value == "CLIENT"
 
+    def test_app_value(self):
+        """APP should be a valid matching target (Bug #72 fix)."""
+        from src.models.firewall_policy import MatchingTarget
+
+        assert MatchingTarget.APP.value == "APP"
+
 
 class TestConnectionStateType:
     """Tests for ConnectionStateType enum."""
@@ -399,6 +405,25 @@ class TestFirewallPolicy:
         policy = FirewallPolicy(**port_forward_rule)
         assert policy.origin_type == "port_forward"
         assert policy.origin_id == "pf-origin-123"
+
+    def test_app_matching_target_rule(self):
+        """Should parse rules with APP matching target (Bug #72 fix)."""
+        from src.models.firewall_policy import FirewallPolicy, MatchingTarget
+
+        app_rule = {
+            "_id": "app-001",
+            "name": "Block Streaming Apps",
+            "action": "BLOCK",
+            "source": {"zone_id": "zone-internal", "matching_target": "ANY"},
+            "destination": {
+                "zone_id": "zone-external",
+                "matching_target": "APP",
+            },
+        }
+        policy = FirewallPolicy(**app_rule)
+        assert policy.destination.matching_target == MatchingTarget.APP
+        assert policy.name == "Block Streaming Apps"
+        assert policy.action.value == "BLOCK"
 
 
 class TestFirewallPolicyCreate:

@@ -157,6 +157,7 @@ class TestListFirewallPolicies:
             MockClient.return_value.__aenter__.return_value = mock_client
             mock_client.is_authenticated = True
             mock_client.get.return_value = sample_policy_response
+            mock_client._site_uuid_to_name = {"default": "default"}
 
             await list_firewall_policies("default", local_settings)
 
@@ -179,6 +180,7 @@ class TestListFirewallPolicies:
             mock_client = AsyncMock()
             MockClient.return_value.__aenter__.return_value = mock_client
             mock_client.is_authenticated = True
+            mock_client._site_uuid_to_name = {"my-custom-site": "my-custom-site"}
             mock_client.get.return_value = sample_policy_response
 
             result = await list_firewall_policies(custom_site_id, local_settings)
@@ -220,6 +222,56 @@ class TestListFirewallPolicies:
             await list_firewall_policies("default", local_settings)
 
             mock_client.authenticate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_firewall_policies_with_app_matching_target_fails(
+        self, local_settings: Settings
+    ) -> None:
+        """Test that list_firewall_policies succeeds with matching_target='APP'.
+
+        Bug #72 (FIXED): The MatchingTarget enum now includes the 'APP' value that
+        real UniFi controllers return. This test verifies the fix works correctly.
+        """
+        from src.models.firewall_policy import MatchingTarget
+        from src.tools.firewall_policies import list_firewall_policies
+
+        # API response with matching_target='APP' that previously caused validation error
+        policy_with_app_target = [
+            {
+                "_id": "682a0e42220317278bb0b2cb",
+                "name": "Block APP Traffic",
+                "enabled": True,
+                "action": "BLOCK",
+                "predefined": False,
+                "index": 10000,
+                "protocol": "all",
+                "ip_version": "BOTH",
+                "connection_state_type": "ALL",
+                "source": {
+                    "zone_id": "682a0e42220317278bb0b2c5",
+                    "matching_target": "APP",  # Bug #72 FIXED: APP now in MatchingTarget enum
+                },
+                "destination": {
+                    "zone_id": "682a0e42220317278bb0b2c5",
+                    "matching_target": "ANY",
+                },
+            },
+        ]
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client._site_uuid_to_name = {"default": "default"}
+            mock_client.get.return_value = policy_with_app_target
+
+            # This should now succeed because APP is in the enum
+            result = await list_firewall_policies("default", local_settings)
+
+            assert isinstance(result, list)
+            assert len(result) == 1
+            assert result[0]["name"] == "Block APP Traffic"
+            assert result[0]["source"]["matching_target"] == MatchingTarget.APP.value
 
 
 class TestGetFirewallPolicy:
@@ -740,6 +792,45 @@ class TestUpdateFirewallPolicy:
                 confirm=True,
                 settings=local_settings,
             )
+
+    @pytest.mark.asyncio
+    async def test_update_firewall_policy_with_site_uuid_bug_73(
+        self,
+        local_settings: Settings,
+        sample_existing_policy: dict,
+        sample_updated_policy: dict,
+    ) -> None:
+        """Test that update_firewall_policy succeeds with site UUIDs using normalization.
+
+        Bug #73 (FIXED): update_firewall_policy() now uses _site_uuid_to_name mapping
+        to normalize UUIDs to short-names like "default" before building the endpoint.
+        """
+        from src.tools.firewall_policies import update_firewall_policy
+
+        site_uuid = "62d2c5fdbf6b8c7ef80c0f2a"  # Example site UUID
+
+        with patch("src.tools.firewall_policies.UniFiClient") as MockClient:
+            mock_client = AsyncMock()
+            MockClient.return_value.__aenter__.return_value = mock_client
+            mock_client.is_authenticated = True
+            mock_client._site_uuid_to_name = {site_uuid: "default"}
+            mock_client.get.return_value = sample_existing_policy
+            mock_client.put.return_value = sample_updated_policy
+
+            result = await update_firewall_policy(
+                policy_id="682a0e42220317278bb0b2cb",
+                name="Updated Policy Name",
+                site_id=site_uuid,
+                confirm=True,
+                settings=local_settings,
+            )
+
+            assert result["name"] == "Updated Policy Name"
+
+            # Verify the endpoint was built with the normalized short-name "default"
+            called_endpoint = mock_client.put.call_args[0][0]
+            assert "default" in called_endpoint
+            assert site_uuid not in called_endpoint
 
 
 class TestDeleteFirewallPolicy:

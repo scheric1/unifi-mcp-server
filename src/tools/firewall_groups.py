@@ -24,13 +24,7 @@ from typing import Any
 from ..api.client import UniFiClient
 from ..config import APIType, Settings
 from ..models.firewall_group import FirewallGroup, FirewallGroupCreate
-from ..utils import (
-    APIError,
-    ResourceNotFoundError,
-    get_logger,
-    log_audit,
-    sanitize_log_message,
-)
+from ..utils import APIError, ResourceNotFoundError, get_logger, log_audit, sanitize_log_message
 from ..utils.validators import coerce_bool
 
 logger = get_logger(__name__)

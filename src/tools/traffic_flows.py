@@ -80,7 +80,8 @@ async def _fetch_raw_flows(
     The endpoint ignores pagination/filter params so we always send an empty
     body and apply filtering client-side in the public wrappers below.
     """
-    endpoint = f"{settings.get_v2_api_path(site_id)}/traffic-flows"
+    normalized_site_id = client._site_uuid_to_name.get(site_id, site_id)
+    endpoint = f"{settings.get_v2_api_path(normalized_site_id)}/traffic-flows"
     response = await client.post(endpoint, json_data={})
     if isinstance(response, list):
         return [f for f in response if isinstance(f, dict)]

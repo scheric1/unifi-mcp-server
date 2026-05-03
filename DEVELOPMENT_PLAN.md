@@ -1,7 +1,7 @@
 # UniFi MCP Server Development Plan
 
-**Document Version:** 2026-04-23  
-**API Target:** UniFi Network v10.3.55 + Site Manager v1.0.0 + Protect v6.2.83  
+**Document Version:** 2026-04-23
+**API Target:** UniFi Network v10.3.55 + Site Manager v1.0.0 + Protect v6.2.83
 **Current Codebase:** ~200 async tool functions across 37 modules
 
 ---
@@ -86,6 +86,7 @@ Based on `docs/UNIFI_API.md` (v10.3.55) and `API.md`.
 **Goal:** Close all remaining Network API v10.3.55 gaps.
 
 #### 1.1 Switching API
+
 - `list_switch_stacks` / `get_switch_stack`
 - `list_mclag_domains` / `get_mclag_domain`
 - `list_lags` / `get_lag_details`
@@ -94,18 +95,21 @@ Based on `docs/UNIFI_API.md` (v10.3.55) and `API.md`.
 - Acceptance: integration tests against real or mock stack topology
 
 #### 1.2 Network References
+
 - `get_network_references(site_id, network_id)`
 - Returns upstream/downstream network dependencies
 - Estimated tools: 1
 - Acceptance: returns valid reference graph for a corporate network
 
 #### 1.3 Speed Test & Spectrum (Stretch)
+
 - `run_speed_test`, `get_speed_test_status`, `get_speed_test_history`
 - `get_spectrum_scan`, `list_spectrum_interference`
 - Estimated tools: 4-5
 - Acceptance: dry-run safe; speed test triggers real traffic (document clearly)
 
 **Phase 1 Deliverables:**
+
 - [ ] `src/tools/switching.py` with full Switching API coverage
 - [ ] `src/models/switching.py` data models
 - [ ] Network references tool in `src/tools/networks.py` or new module
@@ -119,17 +123,20 @@ Based on `docs/UNIFI_API.md` (v10.3.55) and `API.md`.
 **Goal:** Complete Site Manager v1.0.0 coverage and add Cloud Connector foundation.
 
 #### 2.1 Connector Proxy — Network
+
 - `connector_network_post`, `connector_network_get`, `connector_network_put`, `connector_network_delete`, `connector_network_patch`
 - Generic wrapper tools that proxy arbitrary requests through `api.ui.com/v1/connector/...`
 - Requires `console_id`, `site_id`, and path/body parameters
 - Estimated tools: 5
 
 #### 2.2 Connector Proxy — Protect
+
 - `connector_protect_post`, `connector_protect_get`, `connector_protect_put`, `connector_protect_delete`, `connector_protect_patch`
 - Same pattern as Network connector
 - Estimated tools: 5
 
 **Phase 2 Deliverables:**
+
 - [ ] `src/tools/connector.py` with Network and Protect proxy tools
 - [ ] `src/models/connector.py` request/response wrappers
 - [ ] Documentation: connector auth flow and usage examples
@@ -142,17 +149,20 @@ Based on `docs/UNIFI_API.md` (v10.3.55) and `API.md`.
 **Goal:** Full Protect v6.2.83 API coverage — the largest single expansion.
 
 This is a new application domain requiring:
+
 - New API client context (`src/api/protect_client.py`) or extension of existing client
 - New models (`src/models/protect_*.py`)
 - New tool modules (`src/tools/protect_*.py`)
 - New resources (`src/resources/protect.py`)
 
 #### 3.1 Core Protect Infrastructure
+
 - Protect API client with NVR base URL discovery
 - Authentication reuse (local API key / cloud connector)
 - Response normalization for Protect-specific wrappers
 
 #### 3.2 Camera Management
+
 - `list_cameras`, `get_camera`, `update_camera`, `get_camera_snapshot`
 - `create_camera_rtsps_stream`, `delete_camera_rtsps_stream`, `get_camera_rtsps_streams`
 - `disable_camera_microphone`
@@ -161,31 +171,37 @@ This is a new application domain requiring:
 - Estimated tools: 12
 
 #### 3.3 Light, Sensor, Chime Management
+
 - `list_lights`, `get_light`, `update_light`
 - `list_sensors`, `get_sensor`, `update_sensor`
 - `list_chimes`, `get_chime`, `update_chime`
 - Estimated tools: 9
 
 #### 3.4 NVR & Device Assets
+
 - `get_nvr_details`
 - `upload_device_asset_file`, `get_device_asset_files`
 - Estimated tools: 3
 
 #### 3.5 Live Views & Viewer Config
+
 - `get_viewer_details`, `update_viewer_settings`, `list_viewers`
 - `get_live_view`, `update_live_view`, `list_live_views`, `create_live_view`
 - Estimated tools: 7
 
 #### 3.6 Events & Webhooks
+
 - `get_protect_events`
 - `send_alarm_manager_webhook`
 - Estimated tools: 2
 
 #### 3.7 Device Updates
+
 - `get_device_update_messages`
 - Estimated tools: 1
 
 **Phase 3 Deliverables:**
+
 - [ ] `src/api/protect_client.py` — Protect-specific HTTP client
 - [ ] `src/models/protect_*.py` — Camera, Light, Sensor, Chime, NVR, LiveView, Viewer models
 - [ ] `src/tools/protect_cameras.py` — Camera + PTZ + RTSPS + talkback
@@ -207,29 +223,34 @@ This is a new application domain requiring:
 **Goal:** Reach 80%+ test coverage, close minor gaps, and production-harden.
 
 #### 4.1 Minor Gap Closure
+
 - Dynamic DNS full CRUD (`src/tools/wans.py` extension)
 - Tagged MAC management (`src/tools/devices.py` extension or new module)
 - Device migration tools
 - Spectrum scan (if not done in Phase 1)
 
 #### 4.2 Test Coverage
+
 - Unit tests for all new Phase 1-3 modules
 - Integration tests for Switching, Connector, Protect
 - Target: 80%+ overall coverage (currently ~84% on core modules)
 
 #### 4.3 Documentation
+
 - `API.md`: complete tool reference for all new tools
 - `UNIFI_API.md`: mark every implemented endpoint with ✅
 - `README.md`: update feature matrix and tool count
 - `CHANGELOG.md`: version entry
 
 #### 4.4 Release Preparation
+
 - Version bump to v0.2.0 (or appropriate version)
 - Pre-commit hooks pass (`ruff`, `mypy`, `bandit`)
 - Docker build verification
 - Security scan clean
 
 **Phase 4 Deliverables:**
+
 - [ ] All new code covered by tests
 - [ ] Documentation fully synchronized with code
 - [ ] CI green
@@ -376,6 +397,7 @@ register_module_tools(mcp, switching_tools, settings)
 ## 9. Documentation Maintenance
 
 After each phase:
+
 1. Update `docs/UNIFI_API.md` — add ✅ to implemented endpoints
 2. Update `API.md` — add new MCP tools to reference tables
 3. Update `README.md` — refresh feature matrix and tool count
@@ -394,6 +416,6 @@ After each phase:
 
 ---
 
-*Plan maintained by: Hermes / AI coding agents*  
-*Last updated: 2026-04-23*  
+*Plan maintained by: Hermes / AI coding agents*
+*Last updated: 2026-04-23*
 *Next review: Phase 1 completion*

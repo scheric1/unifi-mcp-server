@@ -49,7 +49,8 @@ async def list_firewall_rules(
         # policies live on the v2 endpoint. Fall back to v2 when empty.
         if not rules_data and settings.api_type == APIType.LOCAL:
             try:
-                v2_endpoint = f"{settings.get_v2_api_path(site_id)}/firewall-policies"
+                normalized_site_id = client._site_uuid_to_name.get(site_id, site_id)
+                v2_endpoint = f"{settings.get_v2_api_path(normalized_site_id)}/firewall-policies"
                 v2_response = await client.get(v2_endpoint)
                 v2_data = (
                     v2_response if isinstance(v2_response, list) else v2_response.get("data", [])
