@@ -198,7 +198,7 @@ async def audit_action(
         "site_id": site_id,
     }
 
-    params_to_log = dict(parameters)
+    params_to_log: dict[str, Any] = dict(parameters)
     if details:
         params_to_log["details"] = details
 

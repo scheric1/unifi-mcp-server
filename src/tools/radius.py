@@ -739,7 +739,7 @@ async def configure_guest_portal(
 
         if dry_run:
             # Build safe payload without secrets for logging
-            payload_safe = {}
+            payload_safe: dict[str, Any] = {}
             if portal_title is not None:
                 payload_safe["portal_title"] = portal_title
             if auth_method is not None:

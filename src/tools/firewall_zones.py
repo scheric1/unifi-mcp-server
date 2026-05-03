@@ -1,7 +1,7 @@
 """Firewall zone management tools."""
 
 import re
-from typing import Any
+from typing import Any, cast
 
 from ..api.client import UniFiClient
 from ..config import APIType, Settings
@@ -96,7 +96,7 @@ async def list_firewall_zones(
         data = response if isinstance(response, list) else response.get("data", [])
 
         # Return raw data - API response may not match model exactly
-        return data
+        return cast(list[dict[str, Any]], data)
 
 
 async def create_firewall_zone(
@@ -180,7 +180,7 @@ async def create_firewall_zone(
         )
 
         # Return raw data - API response may not match model exactly
-        return data
+        return cast(dict[str, Any], data)
 
 
 async def update_firewall_zone(
@@ -285,7 +285,7 @@ async def update_firewall_zone(
         )
 
         # Return raw data - API response may not match model exactly
-        return data
+        return cast(dict[str, Any], data)
 
 
 async def assign_network_to_zone(

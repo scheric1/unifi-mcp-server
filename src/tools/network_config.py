@@ -134,10 +134,10 @@ async def create_network(
                 f"/ea/sites/{site_id}/rest/networkconf", json_data=network_data
             )
             if isinstance(response, list):
-                created_network: dict[str, Any] = response[0] if response else {}
+                created_network = response[0] if response else {}
             else:
                 _raw = response.get("data", response)
-                created_network: dict[str, Any] = _raw[0] if isinstance(_raw, list) else _raw
+                created_network = _raw[0] if isinstance(_raw, list) else _raw
 
             logger.info(sanitize_log_message(f"Created network '{name}' in site '{site_id}'"))
             log_audit(
@@ -292,10 +292,10 @@ async def update_network(
                 f"/ea/sites/{site_id}/rest/networkconf/{network_id}", json_data=update_data
             )
             if isinstance(response, list):
-                updated_network: dict[str, Any] = response[0] if response else {}
+                updated_network = response[0] if response else {}
             else:
                 _raw = response.get("data", response)
-                updated_network: dict[str, Any] = _raw[0] if isinstance(_raw, list) else _raw
+                updated_network = _raw[0] if isinstance(_raw, list) else _raw
 
             logger.info(sanitize_log_message(f"Updated network '{network_id}' in site '{site_id}'"))
             log_audit(

@@ -339,17 +339,12 @@ async def authorize_guest(
             await client.authenticate()
 
             # Build authorization payload
-            auth_data = {
-                "action": "authorize-guest",
-                "params": {
-                    "duration": duration,
-                },
-            }
-
+            params: dict[str, Any] = {"duration": duration}
             if upload_limit_kbps is not None:
-                auth_data["params"]["uploadLimit"] = upload_limit_kbps
+                params["uploadLimit"] = upload_limit_kbps
             if download_limit_kbps is not None:
-                auth_data["params"]["downloadLimit"] = download_limit_kbps
+                params["downloadLimit"] = download_limit_kbps
+            auth_data = {"action": "authorize-guest", "params": params}
 
             # Authorize guest using new API endpoint
             await client.post(
@@ -456,15 +451,12 @@ async def limit_bandwidth(
             await client.authenticate()
 
             # Build bandwidth limit payload
-            limit_data = {
-                "action": "limit-bandwidth",
-                "params": {},
-            }
-
+            params: dict[str, Any] = {}
             if upload_limit_kbps is not None:
-                limit_data["params"]["uploadLimit"] = upload_limit_kbps
+                params["uploadLimit"] = upload_limit_kbps
             if download_limit_kbps is not None:
-                limit_data["params"]["downloadLimit"] = download_limit_kbps
+                params["downloadLimit"] = download_limit_kbps
+            limit_data = {"action": "limit-bandwidth", "params": params}
 
             # Apply bandwidth limits using new API endpoint
             await client.post(
