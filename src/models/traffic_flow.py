@@ -92,7 +92,8 @@ class TrafficFlow(BaseModel):
         ..., description="Destination endpoint (external IP or LAN peer)"
     )
     traffic_data: TrafficFlowData = Field(
-        default_factory=lambda: TrafficFlowData(), description="Byte and packet counters"
+        default_factory=lambda: TrafficFlowData(bytes_tx=0, bytes_rx=0, bytes_total=0, packets_tx=0, packets_rx=0, packets_total=0),
+        description="Byte and packet counters",
     )
     policies: list[TrafficFlowPolicy] = Field(
         default_factory=list, description="Firewall policies that matched this flow"
