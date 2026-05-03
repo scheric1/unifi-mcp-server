@@ -882,11 +882,11 @@ async def _create_block_action(
         logger.info(sanitize_log_message(f"[DRY RUN] Would block {block_type}={blocked_target}"))
         return BlockFlowAction(
             action_id=action_id,
-            block_type=block_type,  # type: ignore[arg-type]
+            block_type=block_type,
             blocked_target=blocked_target,
             rule_id=None,
             zone_id=None,
-            duration=duration,  # type: ignore[arg-type]
+            duration=duration,
             expires_at=expires_at,
             created_at=created_at,
         ).model_dump()
@@ -912,11 +912,11 @@ async def _create_block_action(
 
     return BlockFlowAction(
         action_id=action_id,
-        block_type=block_type,  # type: ignore[arg-type]
+        block_type=block_type,
         blocked_target=blocked_target,
         rule_id=str(rule_result.get("_id", rule_result.get("id", ""))) or None,
         zone_id=None,
-        duration=duration,  # type: ignore[arg-type]
+        duration=duration,
         expires_at=expires_at,
         created_at=created_at,
     ).model_dump()

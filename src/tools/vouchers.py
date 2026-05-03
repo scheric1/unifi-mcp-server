@@ -73,7 +73,7 @@ async def get_voucher(site_id: str, voucher_id: str, settings: Settings) -> dict
             _raw = response.get("data", response)
             data = _raw[0] if isinstance(_raw, list) else _raw
 
-        return Voucher(**data).model_dump()  # type: ignore[no-any-return]
+        return Voucher(**data).model_dump()
 
 
 async def create_vouchers(

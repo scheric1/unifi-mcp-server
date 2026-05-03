@@ -66,7 +66,7 @@ async def get_radius_profile(
         if isinstance(data, list):
             data = data[0] if data else {}
 
-        return RADIUSProfile(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSProfile(**data).model_dump()
 
 
 async def create_radius_profile(
@@ -167,7 +167,7 @@ async def create_radius_profile(
             details={"name": name, "auth_server": auth_server},
         )
 
-        return RADIUSProfile(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSProfile(**data).model_dump()
 
 
 async def update_radius_profile(
@@ -284,7 +284,7 @@ async def update_radius_profile(
             details=payload,
         )
 
-        return RADIUSProfile(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSProfile(**data).model_dump()
 
 
 async def delete_radius_profile(
@@ -462,7 +462,7 @@ async def create_radius_account(
         if "x_password" in data:
             data["x_password"] = "***REDACTED***"
 
-        return RADIUSAccount(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSAccount(**data).model_dump()
 
 
 async def get_radius_account(
@@ -497,7 +497,7 @@ async def get_radius_account(
         if "x_password" in data:
             data["x_password"] = "***REDACTED***"
 
-        return RADIUSAccount(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSAccount(**data).model_dump()
 
 
 async def update_radius_account(
@@ -593,7 +593,7 @@ async def update_radius_account(
         if "x_password" in data:
             data["x_password"] = "***REDACTED***"
 
-        return RADIUSAccount(**data).model_dump()  # type: ignore[no-any-return]
+        return RADIUSAccount(**data).model_dump()
 
 
 async def delete_radius_account(
@@ -673,7 +673,7 @@ async def get_guest_portal_config(
         if isinstance(data, list):
             data = data[0] if data else {}
 
-        return GuestPortalConfig(**data).model_dump()  # type: ignore[no-any-return]
+        return GuestPortalConfig(**data).model_dump()
 
 
 async def configure_guest_portal(
@@ -778,7 +778,7 @@ async def configure_guest_portal(
             details=payload,
         )
 
-        return GuestPortalConfig(**data).model_dump()  # type: ignore[no-any-return]
+        return GuestPortalConfig(**data).model_dump()
 
 
 # =============================================================================
@@ -896,7 +896,7 @@ async def create_hotspot_package(
             details={"name": name, "duration_minutes": duration_minutes},
         )
 
-        return HotspotPackage(**data).model_dump()  # type: ignore[no-any-return]
+        return HotspotPackage(**data).model_dump()
 
 
 async def get_hotspot_package(
@@ -932,7 +932,7 @@ async def get_hotspot_package(
         if not data:
             return {}
 
-        return HotspotPackage(**data).model_dump()  # type: ignore[no-any-return]
+        return HotspotPackage(**data).model_dump()
 
 
 async def update_hotspot_package(
@@ -1030,7 +1030,7 @@ async def update_hotspot_package(
             details=payload,
         )
 
-        return HotspotPackage(**data).model_dump()  # type: ignore[no-any-return]
+        return HotspotPackage(**data).model_dump()
 
 
 async def delete_hotspot_package(

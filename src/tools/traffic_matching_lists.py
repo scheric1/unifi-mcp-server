@@ -109,7 +109,7 @@ async def get_traffic_matching_list(
             raise ResourceNotFoundError("traffic_matching_list", list_id)
 
         logger.info(sanitize_log_message(f"Retrieved traffic matching list {list_id}"))
-        return TrafficMatchingList(**list_data).model_dump()  # type: ignore[no-any-return]
+        return TrafficMatchingList(**list_data).model_dump()
 
 
 async def create_traffic_matching_list(

@@ -41,7 +41,7 @@ async def get_network_details(site_id: str, network_id: str, settings: Settings)
             if network_data.get("_id") == network_id:
                 network = Network(**network_data)
                 logger.info(sanitize_log_message(f"Retrieved network details for {network_id}"))
-                return network.model_dump()  # type: ignore[no-any-return]
+                return network.model_dump()
 
         raise ResourceNotFoundError("network", network_id)
 

@@ -65,7 +65,7 @@ async def list_traffic_routes(
         # Apply pagination
         paginated_data = data[offset : offset + limit]
 
-        return [TrafficRoute(**route).model_dump() for route in paginated_data]  # type: ignore[no-any-return]
+        return [TrafficRoute(**route).model_dump() for route in paginated_data]
 
 
 async def create_traffic_route(
@@ -188,7 +188,7 @@ async def create_traffic_route(
             site_id=site_id,
         )
 
-        return result  # type: ignore[no-any-return]
+        return result
 
 
 async def update_traffic_route(
@@ -273,7 +273,7 @@ async def update_traffic_route(
             site_id=site_id,
         )
 
-        return result  # type: ignore[no-any-return]
+        return result
 
 
 async def delete_traffic_route(
@@ -312,7 +312,7 @@ async def delete_traffic_route(
             site_id=site_id,
         )
 
-        return {  # type: ignore[no-any-return]
+        return {
             "success": True,
             "message": f"Traffic route {route_id} deleted successfully",
             "route_id": route_id,

@@ -45,7 +45,7 @@ async def get_client_details(site_id: str, client_mac: str, settings: Settings) 
             if validate_mac_address(client_data.get("mac", "")) == client_mac:
                 client_obj = Client(**client_data)
                 logger.info(sanitize_log_message(f"Retrieved client details for {client_mac}"))
-                return client_obj.model_dump()  # type: ignore[no-any-return]
+                return client_obj.model_dump()
 
         # If not found in active, try all users
         response = await client.get(f"/ea/sites/{site_id}/stat/alluser")
@@ -55,7 +55,7 @@ async def get_client_details(site_id: str, client_mac: str, settings: Settings) 
             if validate_mac_address(client_data.get("mac", "")) == client_mac:
                 client_obj = Client(**client_data)
                 logger.info(sanitize_log_message(f"Retrieved client details for {client_mac}"))
-                return client_obj.model_dump()  # type: ignore[no-any-return]
+                return client_obj.model_dump()
 
         raise ResourceNotFoundError("client", client_mac)
 

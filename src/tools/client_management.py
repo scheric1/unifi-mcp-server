@@ -347,9 +347,9 @@ async def authorize_guest(
             }
 
             if upload_limit_kbps is not None:
-                auth_data["params"]["uploadLimit"] = upload_limit_kbps  # type: ignore[index]
+                auth_data["params"]["uploadLimit"] = upload_limit_kbps
             if download_limit_kbps is not None:
-                auth_data["params"]["downloadLimit"] = download_limit_kbps  # type: ignore[index]
+                auth_data["params"]["downloadLimit"] = download_limit_kbps
 
             # Authorize guest using new API endpoint
             await client.post(
@@ -462,9 +462,9 @@ async def limit_bandwidth(
             }
 
             if upload_limit_kbps is not None:
-                limit_data["params"]["uploadLimit"] = upload_limit_kbps  # type: ignore[index]
+                limit_data["params"]["uploadLimit"] = upload_limit_kbps
             if download_limit_kbps is not None:
-                limit_data["params"]["downloadLimit"] = download_limit_kbps  # type: ignore[index]
+                limit_data["params"]["downloadLimit"] = download_limit_kbps
 
             # Apply bandwidth limits using new API endpoint
             await client.post(

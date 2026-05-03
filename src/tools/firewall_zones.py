@@ -96,7 +96,7 @@ async def list_firewall_zones(
         data = response if isinstance(response, list) else response.get("data", [])
 
         # Return raw data - API response may not match model exactly
-        return data  # type: ignore[no-any-return]
+        return data
 
 
 async def create_firewall_zone(
@@ -180,7 +180,7 @@ async def create_firewall_zone(
         )
 
         # Return raw data - API response may not match model exactly
-        return data  # type: ignore[no-any-return]
+        return data
 
 
 async def update_firewall_zone(
@@ -285,7 +285,7 @@ async def update_firewall_zone(
         )
 
         # Return raw data - API response may not match model exactly
-        return data  # type: ignore[no-any-return]
+        return data
 
 
 async def assign_network_to_zone(
@@ -368,7 +368,7 @@ async def assign_network_to_zone(
                     f"Network {resolved_network_id} already assigned to zone {zone_id}"
                 )
             )
-            return ZoneNetworkAssignment(  # type: ignore[no-any-return]
+            return ZoneNetworkAssignment(
                 zone_id=zone_id,
                 network_id=resolved_network_id,
                 network_name=network_name,
@@ -404,7 +404,7 @@ async def assign_network_to_zone(
             details={"zone_id": zone_id, "network_id": resolved_network_id},
         )
 
-        return ZoneNetworkAssignment(  # type: ignore[no-any-return]
+        return ZoneNetworkAssignment(
             zone_id=zone_id,
             network_id=resolved_network_id,
             network_name=network_name,

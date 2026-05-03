@@ -122,7 +122,7 @@ async def get_acl_rule(site_id: str, acl_rule_id: str, settings: Settings) -> di
         )
         data = response.get("data", response)
 
-        return ACLRule(**data).model_dump()  # type: ignore[no-any-return]
+        return ACLRule(**data).model_dump()
 
 
 async def create_acl_rule(
@@ -239,7 +239,7 @@ async def create_acl_rule(
             details={"name": name, "action": normalised_action, "type": normalised_type},
         )
 
-        return ACLRule(**data).model_dump()  # type: ignore[no-any-return]
+        return ACLRule(**data).model_dump()
 
 
 async def update_acl_rule(
@@ -363,7 +363,7 @@ async def update_acl_rule(
             details=payload,
         )
 
-        return ACLRule(**data).model_dump()  # type: ignore[no-any-return]
+        return ACLRule(**data).model_dump()
 
 
 async def delete_acl_rule(

@@ -190,7 +190,7 @@ async def create_firewall_group(
 
     create_model = FirewallGroupCreate(
         name=name,
-        group_type=group_type,  # type: ignore[arg-type]
+        group_type=group_type,
         group_members=list(group_members),
     )
     payload = create_model.model_dump()

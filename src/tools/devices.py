@@ -58,7 +58,7 @@ async def get_device_details(site_id: str, device_id: str, settings: Settings) -
                 # through to the list scan below.
                 if isinstance(device_data, dict) and device_data:
                     logger.info(sanitize_log_message(f"Retrieved device details for {device_id}"))
-                    return Device(**device_data).model_dump()  # type: ignore[no-any-return]
+                    return Device(**device_data).model_dump()
         except (ResourceNotFoundError, APIError) as e:
             # Direct lookup is a best-effort fast path. A 404 / missing-resource
             # response just means we should fall through to the paginated list
@@ -84,7 +84,7 @@ async def get_device_details(site_id: str, device_id: str, settings: Settings) -
             for device_data in devices_data:
                 if device_data.get("id") == device_id or device_data.get("_id") == device_id:
                     logger.info(sanitize_log_message(f"Retrieved device details for {device_id}"))
-                    return Device(**device_data).model_dump()  # type: ignore[no-any-return]
+                    return Device(**device_data).model_dump()
             if len(devices_data) < 100:
                 break
             offset += len(devices_data)
@@ -339,7 +339,7 @@ async def adopt_device(
         )
 
         logger.info(sanitize_log_message(f"Successfully adopted device {device_id}"))
-        return Device(**data).model_dump()  # type: ignore[no-any-return]
+        return Device(**data).model_dump()
 
 
 async def execute_port_action(

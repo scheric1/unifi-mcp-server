@@ -52,7 +52,7 @@ async def get_site_details(site_id: str, settings: Settings) -> dict[str, Any]:
             ):
                 site = Site(**site_data)
                 logger.info(sanitize_log_message(f"Retrieved site details for {site_id}"))
-                return site.model_dump()  # type: ignore[no-any-return]
+                return site.model_dump()
 
         raise ResourceNotFoundError("site", site_id)
 
