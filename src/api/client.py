@@ -543,8 +543,9 @@ class UniFiClient:
             }
 
             if site_identifier in {value for value in identifiers if value}:
-                self._site_id_cache[site_identifier] = site_id
-                return site_id
+                site_id_str = str(site_id)
+                self._site_id_cache[site_identifier] = site_id_str
+                return site_id_str
 
         raise ResourceNotFoundError("site", site_identifier)
 
@@ -616,7 +617,10 @@ class UniFiClient:
         # Handle different response formats
         if isinstance(response, list):
             return response
-        return response.get("data", response.get("backups", []))
+        data = response.get("data", response.get("backups", [])) if isinstance(response, dict) else []
+        if isinstance(data, list):
+            return data
+        return []
 
     async def download_backup(
         self,

@@ -55,7 +55,7 @@ def _make_tool_wrapper(fn: Any, settings: Settings) -> Any:
     else:
 
         @functools.wraps(fn)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:  # type: ignore[misc]
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             kwargs["settings"] = settings
             return fn(*args, **kwargs)
 
