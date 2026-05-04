@@ -1,6 +1,8 @@
 """Network data model."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Network(BaseModel):
@@ -43,6 +45,25 @@ class Network(BaseModel):
 
     # Site association
     site_id: str | None = Field(None, description="Site ID")
+
+    @field_validator("vlan_id", mode="before")
+    @classmethod
+    def coerce_empty_vlan_to_none(cls, v: Any) -> int | None:
+        """Convert empty string VLAN IDs to None.
+
+        The UniFi API returns vlan as an empty string ("") for WAN networks
+        that don't have a VLAN ID. This validator converts that to None
+        before Pydantic attempts integer coercion.
+
+        Args:
+            v: The vlan value from the API response
+
+        Returns:
+            None if v is an empty string, otherwise v as-is for Pydantic to coerce
+        """
+        if v == "":
+            return None
+        return v  # type: ignore[no-any-return]
 
     model_config = ConfigDict(
         populate_by_name=True,
