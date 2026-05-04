@@ -723,6 +723,7 @@ async def validate_backup(
 
 
 async def get_backup_status(
+    site_id: str,
     operation_id: str,
     settings: Settings,
 ) -> dict[str, Any]:
@@ -732,6 +733,7 @@ async def get_backup_status(
     Useful for tracking long-running system backups.
 
     Args:
+        site_id: Site identifier
         operation_id: Backup operation identifier (returned by trigger_backup)
         settings: Application settings
 
@@ -747,6 +749,7 @@ async def get_backup_status(
         # Poll for status
         while True:
             status = await get_backup_status(
+                site_id="default",
                 operation_id=operation_id,
                 settings=settings
             )

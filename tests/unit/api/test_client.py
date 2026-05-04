@@ -251,7 +251,7 @@ class TestUniFiClientHttpMethods:
             mock_request.return_value = mock_response
             result = await client.get("/ea/sites/default/devices")
 
-        assert result == [{"id": "device1"}]
+        assert result == {"data": [{"id": "device1"}]}
         await client.close()
 
     @pytest.mark.asyncio
@@ -408,7 +408,7 @@ class TestUniFiClientErrorHandling:
         with patch.object(client.client, "request", side_effect=side_effect):
             result = await client.get("/ea/sites")
 
-        assert result == []
+        assert result == {"data": []}
         assert call_count == 2
         await client.close()
 
@@ -449,7 +449,7 @@ class TestUniFiClientErrorHandling:
         with patch.object(client.client, "request", side_effect=side_effect):
             result = await client.get("/ea/sites")
 
-        assert result == []
+        assert result == {"data": []}
         assert call_count == 2
         await client.close()
 
