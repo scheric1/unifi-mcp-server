@@ -497,7 +497,9 @@ async def test_get_backup_status_success(mock_settings):
         assert result["status"] == "completed"
         assert result["progress_percent"] == 100
         assert result["operation_id"] == "op_backup_abc123"
-        mock_client.get_backup_status.assert_called_once_with(site_id="default", operation_id="op_backup_abc123")
+        mock_client.get_backup_status.assert_called_once_with(
+            site_id="default", operation_id="op_backup_abc123"
+        )
 
 
 @pytest.mark.asyncio

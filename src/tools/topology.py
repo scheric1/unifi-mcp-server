@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import Literal, Any, cast
+from typing import Any, Literal, cast
 
 from src.api.client import UniFiClient
 from src.config import Settings

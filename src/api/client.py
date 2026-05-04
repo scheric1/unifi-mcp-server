@@ -617,7 +617,9 @@ class UniFiClient:
         # Handle different response formats
         if isinstance(response, list):
             return response
-        data = response.get("data", response.get("backups", [])) if isinstance(response, dict) else []
+        data = (
+            response.get("data", response.get("backups", [])) if isinstance(response, dict) else []
+        )
         if isinstance(data, list):
             return data
         return []
